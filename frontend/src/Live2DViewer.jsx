@@ -1,51 +1,102 @@
-import { useEffect } from 'react';
-import * as live2d from 'live2d-render';
+import { useEffect, useRef } from 'react';
+import * as PIXI from 'pixi.js';
+import { Live2DModel } from 'pixi-live2d-display';
+
+// Expose PIXI to window for the plugin
+window.PIXI = PIXI;
+Live2DModel.registerTicker(PIXI.Ticker);
 
 const Live2DViewer = () => {
+    const canvasRef = useRef(null);
+    const appRef = useRef(null);
+    const modelRef = useRef(null);
+
     useEffect(() => {
-        let intervalId;
+        if (!canvasRef.current) return;
+        if (appRef.current) return;
 
         const init = async () => {
             try {
-                await live2d.initializeLive2D({
-                    BackgroundRGBA: [0.0, 0.0, 0.0, 0.0],
-                    ResourcesPath: "/models/LSS/LSS.model3.json",
-                    CanvasSize: {
-                        height: 1800,
-                        width: 1200,
-                    },
-                    ShowToolBox: true,
-                    LoadFromCache: true,
-                    CanvasId: "live2d-canvas",
+                const app = new PIXI.Application({
+                    view: canvasRef.current,
+                    width: 1200,
+                    height: 1800,
+                    transparent: true,
+                    autoStart: true,
                 });
-                console.log("Live2D initialized");
+                appRef.current = app;
 
-                const playLoop = () => {
-                    live2d.setExpression('Normal');
-                    console.log("Expression set to Normal");
+                const model = await Live2DModel.from('/models/LSS/LSS.model3.json', {
+                    autoInteract: false
+                });
 
-                    setTimeout(() => {
-                        live2d.setExpression('Happy');
-                        console.log("Expression set to Happy");
-                    }, 2000);
-                };
+                if (!appRef.current || appRef.current !== app) {
+                    model.destroy();
+                    return;
+                }
 
-                playLoop();
-                intervalId = setInterval(playLoop, 4000);
+                modelRef.current = model;
+                app.stage.addChild(model);
+
+                try {
+                    model.anchor.set(0.5);
+                    model.x = app.renderer.width / 2;
+                    model.y = app.renderer.height / 2;
+                } catch (e) {
+                    model.x = app.renderer.width / 2;
+                    model.y = app.renderer.height / 2;
+                }
+
+                const scaleX = app.renderer.width / model.width;
+                const scaleY = app.renderer.height / model.height;
+                model.scale.set(Math.min(scaleX, scaleY) * 1.0);
+
+                console.log("Live2D Model Loaded via pixi-live2d-display");
+                console.log("Model Size: ", model.width, model.height);
+                console.log("Model Pos: ", model.x, model.y);
+                console.log("Model Scale: ", model.scale.x);
+
             } catch (error) {
-                console.error("Failed to initialize Live2D:", error);
+                console.error("Failed to load Live2D model:", error);
             }
         };
 
         init();
+        return () => {
+            if (appRef.current) {
+                appRef.current.destroy(false, { children: true });
+                appRef.current = null;
+                modelRef.current = null;
+            }
+        };
+    }, []);
+
+    useEffect(() => {
+        const playExpression = () => {
+            if (!modelRef.current) return;
+
+            const expressions = [
+                "Happy", "Normal"
+            ];
+
+            const randomExpression = expressions[Math.floor(Math.random() * expressions.length)];
+            console.log("Switching expression to:", randomExpression);
+            if (modelRef.current.expression) {
+                modelRef.current.expression(randomExpression);
+            } else {
+                console.warn("model.expression method missing");
+            }
+        };
+
+        const intervalId = setInterval(playExpression, 4000);
 
         return () => {
-            if (intervalId) clearInterval(intervalId);
+            clearInterval(intervalId);
         };
     }, []);
 
     return (
-        null
+        <canvas id="live2d-canvas" ref={canvasRef} style={{ position: 'fixed', bottom: 0, right: 0, zIndex: 1, pointerEvents: 'none' }} />
     );
 };
 
