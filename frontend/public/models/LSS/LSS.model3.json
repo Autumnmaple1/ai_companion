@@ -15,6 +15,10 @@
 			{
 				"Name": "Normal",
 				"File": "expressions/normal.exp3.json"
+			},
+			{
+				"Name": "Sad",
+				"File": "sad.exp3.json"
 			}
 		]
 	},
@@ -32,5 +36,6 @@
 			"Name": "LipSync",
 			"Ids": []
 		}
-	]
+	],
+	"HitAreas": []
 }
