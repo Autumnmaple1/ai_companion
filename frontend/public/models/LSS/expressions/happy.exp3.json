@@ -7,8 +7,13 @@
             "Blend": "Add"
         },
         {
-            "Id": "ParamCheek",
-            "Value": 1,
+            "Id": "Param4",
+            "Value": "1",
+            "Blend": "Add"
+        },
+        {
+            "Id": "ParamHairFront",
+            "Value": "1",
             "Blend": "Add"
         }
     ]
