@@ -3,14 +3,19 @@ from dashscope.aigc.generation import AioGeneration
 from typing import AsyncGenerator
 import collections
 import asyncio
+import os
 
 class LLMModule:
     """
     NOVA AI 伴侣 LLM 模块，使用通义千问 qwen-turbo 模型。
     支持流式输出、上下文管理以及表情注入。
     """
-    def __init__(self, api_key: str = "sk-b0ce58d3be194be4b5987f747247503b"):
-        dashscope.api_key = api_key
+    def __init__(self, api_key: str = None):
+        self.api_key = api_key or os.getenv("DASHSCOPE_API_KEY")
+        if not self.api_key:
+            raise ValueError("DASHSCOPE_API_KEY not found. Please set it in environment variables or .env file.")
+        
+        dashscope.api_key = self.api_key
         self.model = "qwen-turbo"
         # 简易对话记忆队列，保留最近 10 轮对话 (每轮包含 user 和 assistant)
         # 20 条消息对应 10 轮
