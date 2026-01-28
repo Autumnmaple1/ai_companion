@@ -6,10 +6,46 @@ import { Live2DModel } from 'pixi-live2d-display';
 window.PIXI = PIXI;
 Live2DModel.registerTicker(PIXI.Ticker);
 
-const Live2DViewer = () => {
+const Live2DViewer = ({ emotion, isTalking }) => {
     const canvasRef = useRef(null);
     const appRef = useRef(null);
     const modelRef = useRef(null);
+
+    useEffect(() => {
+        if (modelRef.current && isTalking) {
+            // 收到正在播放语音的信号时，尝试驱动口型
+            // 1. 如果有 motions 可以播放 Speak
+            // 2. 如果没有动作，简单地开启 lipSync (需要音量，这里暂模拟)
+            try {
+                if (modelRef.current.internalModel && modelRef.current.internalModel.motionManager) {
+                    modelRef.current.motion('Speak'); 
+                }
+            } catch (e) { console.log(e); }
+        }
+    }, [isTalking]);
+
+    useEffect(() => {
+        if (modelRef.current && emotion) {
+            console.log("Playing expression from prop:", emotion);
+            try {
+                // 将 emotion 代码映射到模型支持的表情名 (首字母大写等)
+                const expressionMap = {
+                    'happy': 'Happy',
+                    'sad': 'Sad',
+                    'angry': 'Angry',
+                    'surprised': 'Surprised',
+                    'wink': 'Wink',
+                    'blush': 'Blush'
+                };
+                const expName = expressionMap[emotion.toLowerCase()] || emotion;
+                if (modelRef.current.expression) {
+                    modelRef.current.expression(expName);
+                }
+            } catch (err) {
+                console.error("Failed to play expression:", err);
+            }
+        }
+    }, [emotion]);
 
     useEffect(() => {
         if (!canvasRef.current) return;
@@ -72,27 +108,7 @@ const Live2DViewer = () => {
     }, []);
 
     useEffect(() => {
-        const playExpression = () => {
-            if (!modelRef.current) return;
-
-            const expressions = [
-                "Happy", "Normal", "Sad"
-            ];
-
-            const randomExpression = expressions[Math.floor(Math.random() * expressions.length)];
-            console.log("Switching expression to:", randomExpression);
-            if (modelRef.current.expression) {
-                modelRef.current.expression(randomExpression);
-            } else {
-                console.warn("model.expression method missing");
-            }
-        };
-
-        const intervalId = setInterval(playExpression, 6000);
-
-        return () => {
-            clearInterval(intervalId);
-        };
+        // 移除了随机表情切换，现在由外部 emotion prop 驱动
     }, []);
 
     return (

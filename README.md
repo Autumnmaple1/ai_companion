@@ -14,22 +14,20 @@ ai_companion/
 
 ## 功能特性
 
-*   **实时交互**: 使用 WebSocket 实现前后端实时通信。
-*   **Live2D 展示**: 前端集成 `pixi-live2d-display`，能够在网页上展示并驱动 Live2D 模型。
-*   **多模态输入/输出**:
-    *   **文本对话**: 发送和接收文本消息。
-    *   **语音交互**: 支持发送语音（录音），后端进行语音转文字 (ASR)。
-    *   **语音合成**: 后端可将回复转换为语音 (TTS) 返回给前端播放。
-*   **AI 智能**: 集成 LLM（大型语言模型）处理对话逻辑（目前模块可能处于测试/Mock 状态）。
+*   **实时流式对话**: LLM (Qwen-Turbo) 异步流式输出，打字机式视觉反馈。
+*   **中英双语无缝切换**: 自动识别用户语言并即时切换语种与 TTS 发音。
+*   **情绪驱动 Live2D**: AI 回复中自动注入表情标签（Happy/Sad等），驱动模型表情与口型。
+*   **高保真语音合成**: 接入云端 GPT-SoVITS (Vertin 维尔汀模型)，支持自动播放。
+*   **上下文管理**: 保留最近 10 轮对话记忆，对话更自然。
 
 ## 环境要求
 
 ### 后端 (Python)
 
-需要 Python 3.x 环境。建议安装以下依赖包：
+建议使用 Conda 环境：
 
 ```bash
-pip install fastapi uvicorn websockets openai
+pip install fastapi uvicorn dashscope requests
 ```
 
 
@@ -74,8 +72,9 @@ npm run dev
 
 ## 注意事项
 
-*   目前的 AI 模块（`ai_modules`）中包含测试用的桩代码（Mock Data），例如返回固定的文本或音频。如需实际功能，请配置相应的 API Key 或本地模型路径。
-*   Live2D 模型文件位于 `frontend/public/models/LSS/` 目录下。
+1.  **浏览器权限**: 初次进入页面需点击“开启语音互动”按钮，以解锁浏览器自动播放音频的权限。
+2.  **API 配置**: 确保 `LLM.py` 中的 DashScope Key 有效，且 `TTS.py` 中的远程服务器地址已开启。
+3.  **缓存**: 项目已清理 redundant 缓存，开发过程中建议保持环境整洁。
 
 ## 许可证
 

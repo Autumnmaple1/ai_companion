@@ -93,6 +93,7 @@
   line-height: 1.4;
   max-width: 100%;
   word-wrap: break-word;
+  color: #333; /* 将白字换为黑字 */
 }
 
 .message-item.user {
@@ -105,6 +106,18 @@
   background-color: #f1f1f1;
   align-self: flex-end;
   margin-right: 20px;
+}
+
+.playing-icon {
+  display: inline-block;
+  margin-right: 5px;
+  animation: pulse 1s infinite;
+}
+
+@keyframes pulse {
+  0% { transform: scale(1); opacity: 1; }
+  50% { transform: scale(1.2); opacity: 0.7; }
+  100% { transform: scale(1); opacity: 1; }
 }
 
 .message-item.system {
@@ -261,4 +274,28 @@ button:hover {
 
 .send-btn:hover {
   background-color: #40a9ff;
+}
+.interaction-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: rgba(0, 0, 0, 0.7);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 99999;
+  backdrop-filter: blur(10px);
+}
+
+.start-btn {
+  padding: 20px 40px;
+  font-size: 20px;
+  background: #1890ff;
+  color: white;
+  border-radius: 50px;
+  border: none;
+  cursor: pointer;
+  box-shadow: 0 4px 15px rgba(24, 144, 255, 0.4);
 }

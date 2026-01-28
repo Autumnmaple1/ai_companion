@@ -7,10 +7,8 @@ import base64
 async def speech_to_text(audio_data):
     """
     将人声音频数据转换为文本字符串
-
-    audio_data: 输入的人声音频数据
+    (当前为模拟版本)
+    提示：如果需要测试中英自动切换，请在前端输入框直接输入文本测试。
     """
-    data = audio_data
-    if isinstance(audio_data, str):
-        data = base64.b64decode(audio_data)
-    return "Hello, this is a test."
+    # 默认返回中文，以便触发中文回复逻辑
+    return "你好，NOVA。" 

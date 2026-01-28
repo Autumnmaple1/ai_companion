@@ -22,3 +22,14 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+__pycache__/
+*.pyc
+../ai_modules/models/
+node_modules/
+.env
+# 忽略所有权重和大型二进制文件
+*.pth
+*.ckpt
+*.onnx
+ai_modules/models/

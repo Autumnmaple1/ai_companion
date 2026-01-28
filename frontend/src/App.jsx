@@ -4,6 +4,9 @@ import Live2DViewer from './Live2DViewer';
 
 function App() {
   const [messages, setMessages] = useState([]);
+  const [currentEmotion, setCurrentEmotion] = useState("");
+  const [playingMessageId, setPlayingMessageId] = useState(null); // 正在播放音频的消息 ID
+  const [hasInteracted, setHasInteracted] = useState(false); // 是否已与页面交互（避开浏览限制）
   const ws = useRef(null);
   const [showLogs, setShowLogs] = useState(false);
   const [inputValue, setInputValue] = useState("");
@@ -23,7 +26,41 @@ function App() {
     ws.current.onmessage = (event) => {
       const data = JSON.parse(event.data);
       if (data.type === 'message') {
-        setMessages(prev => [...prev, { role: data.sender, content: data.content }]);
+        const msgId = data.time || Date.now();
+        if (data.format === 'text_chunk') {
+          setMessages(prev => {
+            const lastMsg = prev[prev.length - 1];
+            if (lastMsg && lastMsg.role === 'ai' && lastMsg.isStreaming) {
+              const newMessages = [...prev];
+              newMessages[newMessages.length - 1] = {
+                ...lastMsg,
+                content: lastMsg.content + data.content
+              };
+              return newMessages;
+            } else {
+              return [...prev, { id: msgId, role: data.sender, content: data.content, isStreaming: true }];
+            }
+          });
+        } else if (data.format === 'text') {
+          if (data.live2d_emotion) {
+            setCurrentEmotion(data.live2d_emotion);
+          }
+          setMessages(prev => {
+            const lastMsg = prev[prev.length - 1];
+            if (lastMsg && lastMsg.role === 'ai' && lastMsg.isStreaming) {
+              const newMessages = [...prev];
+              newMessages[newMessages.length - 1] = {
+                ...lastMsg,
+                content: lastMsg.content + (data.content || ""),
+                isStreaming: false,
+                emotion: data.live2d_emotion
+              };
+              return newMessages;
+            } else {
+              return [...prev, { id: msgId, role: data.sender, content: data.content, emotion: data.live2d_emotion }];
+            }
+          });
+        }
       }
       else if (data.type === 'voice') {
         if (currentAudio.current) {
@@ -32,8 +69,19 @@ function App() {
         const audioContent = data.content;
         const audio = new Audio(`data:audio/wav;base64,${audioContent}`);
         currentAudio.current = audio;
+        
+        // 找到最新的 AI 消息并标记正在播放
+        setMessages(prev => {
+            const lastAiMsg = [...prev].reverse().find(m => m.role === 'ai');
+            if (lastAiMsg) {
+                setPlayingMessageId(lastAiMsg.id);
+            }
+            return prev;
+        });
+
         audio.onended = () => {
           currentAudio.current = null;
+          setPlayingMessageId(null);
         };
         audio.play();
       }
@@ -52,6 +100,7 @@ function App() {
     if (currentAudio.current) {
       currentAudio.current.pause();
       currentAudio.current = null;
+      setPlayingMessageId(null);
     }
     if (!inputValue.trim()) return;
     if (ws.current && ws.current.readyState === WebSocket.OPEN) {
@@ -105,6 +154,7 @@ function App() {
       if (currentAudio.current) {
         currentAudio.current.pause();
         currentAudio.current = null;
+        setPlayingMessageId(null);
       }
       setIsRecording(true);
     }
@@ -124,9 +174,23 @@ function App() {
     if (e.key === 'Enter') handleSend();
   };
 
+  const handleStart = () => {
+    setHasInteracted(true);
+    // 播放一个无声片段来解锁浏览器音频
+    const audio = new Audio("data:audio/wav;base64,UklGRigAAABXQVZFZm10IBIAAAABAAEARKwAAIhAAQACABAAAABkYXRhAgAAAAEA");
+    audio.play().catch(e => console.log("Init audio failed", e));
+  };
+
   return (
-    <div className="app-container">
-      <Live2DViewer />
+    <div className="app-container" onClick={() => !hasInteracted && handleStart()}>
+      {!hasInteracted && (
+        <div className="interaction-overlay">
+          <button className="start-btn" onClick={handleStart}>
+            点击开启 NOVA 语音互动
+          </button>
+        </div>
+      )}
+      <Live2DViewer emotion={currentEmotion} isTalking={!!playingMessageId} />
       <div className="sidebar">
         <div className="sidebar-header">
           <div className="sidebar-title">
@@ -151,7 +215,12 @@ function App() {
                 className={`message-item ${msg.role}`}
                 style={showLogs ? { fontSize: '12px', color: '#666', fontFamily: 'monospace' } : {}}
               >
-                {msg.content}
+                {/* 正在播放音频的消息添加一个小图标 */}
+                {msg.role === 'ai' && playingMessageId === msg.id && (
+                  <span className="playing-icon" title="正在播放声音">🔊 </span>
+                )}
+                {/* 过滤掉表情代码标签后再显示 */}
+                {msg.content.replace(/\[emo:.*?\]/g, '')}
               </div>
             ))}
           {messages.filter(msg => showLogs ? msg.role === "system" : msg.role !== "system").length === 0 && (
