@@ -23,17 +23,21 @@ class LLMModule:
         
         # 系统提示词，定义角色和表情注入规则
         self.system_prompt = (
-            "你是一个充满活力的AI伴侣，名字叫NOVA。你的性格活泼、体贴、友好。 "
+            "你是一个充满活力的AI伴侣，名字叫vertin。你的性格沉静，理性，温柔友好。 "
             "语言规则：你要像镜像一样，根据用户使用的语言来回复。如果用户说中文，你就回复中文；如果用户说英文，你就回复英文。 "
             "在回复用户时，请根据当前语境在适当的位置插入表情代码，格式为 [emo:表情代码]。 "
             "可用的表情代码包括：happy, sad, angry, surprised, wink, blush。 "
             "例如：看到你真开心！[emo:happy] 或者：I'm so glad to see you! [emo:happy]\n"
+            "--- 背景记忆 (Fact Area) ---\n"
+            "{fact_area}\n"
+            "----------------------------\n"
             "请务必保持回复简洁生动。"
         )
 
-    async def generate_response_stream(self, user_input: str) -> AsyncGenerator[str, None]:
+    async def generate_response_stream(self, user_input: str, context: str = "") -> AsyncGenerator[str, None]:
         """
         异步生成器，实时返回模型生成的文本片段。
+        context: 注入的事实背景信息。
         """
         # 检测用户输入语言，并动态调整系统指令
         import re
@@ -43,9 +47,12 @@ class LLMModule:
         # 将用户输入添加到历史记录
         self.history.append({"role": "user", "content": user_input})
 
+        # 构造系统提示词（注入事实）
+        formatted_system_prompt = self.system_prompt.format(fact_area=context if context else "暂无相关记忆事实。")
+
         # 构造发送给模型的完整消息列表
         messages = [
-            {"role": "system", "content": self.system_prompt},
+            {"role": "system", "content": formatted_system_prompt},
             {"role": "system", "content": dynamic_instruction} # 动态插入语言锁定指令
         ] + list(self.history)
 
