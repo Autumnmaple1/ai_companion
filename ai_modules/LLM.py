@@ -17,9 +17,9 @@ class LLMModule:
         
         dashscope.api_key = self.api_key
         self.model = "qwen-turbo"
-        # 简易对话记忆队列，保留最近 10 轮对话 (每轮包含 user 和 assistant)
-        # 20 条消息对应 10 轮
-        self.history = collections.deque(maxlen=20)
+        # 简易对话记忆队列，保留最近 30 轮对话 (每轮包含 user 和 assistant)
+        # 60 条消息对应 30 轮
+        self.history = collections.deque(maxlen=60)
         
         # 系统提示词，定义角色和表情注入规则
         self.system_prompt = (
