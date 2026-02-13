@@ -1,0 +1,264 @@
+/* App.css */
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+.app-container {
+  display: flex;
+  height: 100vh;
+  width: 100vw;
+  background-color: #282c34;
+  background-image: url('/bg.png');
+  background-size: cover;
+  background-position: center;
+  background-repeat: no-repeat;
+  font-family: 'PingFang SC',
+    sans-serif;
+}
+
+.sidebar {
+  width: 20%;
+  margin: 6px;
+  height: calc(100vh - 12px);
+  border-radius: 25px;
+  background: rgba(255, 255, 255, 0.75);
+  -webkit-backdrop-filter: blur(5px);
+  backdrop-filter: blur(5px);
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  box-shadow: 0 8px 32px 0 rgba(31, 38, 135, 0.1);
+  display: flex;
+  flex-direction: column;
+  padding: 10px;
+  z-index: 2;
+  /* 确保侧边栏在 Live2D 之上 */
+}
+
+.sidebar-header {
+  position: relative;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  margin-bottom: 15px;
+  padding-bottom: 10px;
+  border-bottom: 1px solid #f0f0f0;
+}
+
+.sidebar-header .icon-btn {
+  position: absolute;
+  right: 0;
+}
+
+.sidebar-title {
+  font-size: 18px;
+  font-weight: bold;
+  text-align: center;
+  color: #333;
+}
+
+.message-list {
+  flex: 1;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  direction: rtl;
+  padding-left: 5px;
+}
+
+.message-list::-webkit-scrollbar {
+  width: 6px;
+}
+
+.message-list::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.message-list::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.3);
+  border-radius: 3px;
+}
+
+.message-list::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.5);
+}
+
+
+.message-item {
+  direction: ltr;
+  padding: 8px 12px;
+  border-radius: 8px;
+  font-size: 14px;
+  line-height: 1.4;
+  max-width: 100%;
+  word-wrap: break-word;
+}
+
+.message-item.user {
+  background-color: #69ec85;
+  align-self: flex-start;
+  margin-left: 20px;
+}
+
+.message-item.ai {
+  background-color: #f1f1f1;
+  align-self: flex-end;
+  margin-right: 20px;
+}
+
+.message-item.system {
+  background-color: #fff0f6;
+  border: 1px dashed #ffadd2;
+  align-self: flex-end;
+  width: 100%;
+}
+
+
+.main-area {
+  flex: 1;
+  position: relative;
+  background: transparent;
+
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  color: white;
+  z-index: 2;
+  /* 确保主交互区域在 Live2D 之上 */
+  pointer-events: none;
+  /* 让点击事件穿透 main-area 容器本身 */
+}
+
+.input-area {
+  position: absolute;
+  bottom: 20px;
+  left: 5%;
+  width: 90%;
+  background: rgba(255, 255, 255, 0.65);
+  -webkit-backdrop-filter: blur(5px);
+  backdrop-filter: blur(5px);
+  border: 1px solid rgba(255, 255, 255, 0.4);
+  padding: 10px;
+  border-radius: 30px;
+  display: flex;
+  gap: 10px;
+  box-shadow: 0 8px 32px 0 rgba(31, 38, 135, 0.2);
+  z-index: 10000;
+  pointer-events: auto;
+  /* 恢复输入区的点击交互 */
+}
+
+#live2d-canvas {
+  /* 禁止鼠标交互（从而关闭视线跟随），同时允许点击穿透到下方元素 */
+  pointer-events: none !important;
+
+  /* 强制可见性 */
+  opacity: 1 !important;
+  visibility: visible !important;
+
+  /* 确保 display 不被覆盖 */
+  display: block;
+
+  /* 层级设置：高于背景，但低于输入框(10000) */
+  z-index: 9999;
+
+
+  /* --- 位置与大小调整 --- */
+  position: fixed;
+  bottom: -20px;
+  /*稍微下沉一点，隐藏模型底部切边*/
+  right: -50px;
+  /*稍微向右偏移*/
+
+  /* 使用 CSS transform 进行缩放，比修改 CanvasSize 分辨率性能更好且更灵活 */
+  transform-origin: bottom right;
+  /* 缩放基点设为右下角 */
+  transform: scale(0.4);
+  /* 根据需要调整缩放比例 */
+}
+
+
+
+input {
+  flex: 1;
+  background: transparent;
+  border: none;
+  outline: none;
+  font-size: 16px;
+  padding-left: 10px;
+  color: #333;
+}
+
+button {
+  padding: 8px 20px;
+  border-radius: 20px;
+  border: none;
+  background-color: #1890ff;
+  color: white;
+  cursor: pointer;
+  font-weight: bold;
+}
+
+button:hover {
+  background-color: #40a9ff;
+}
+
+.icon-btn {
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  padding: 8px;
+  border-radius: 50%;
+  /* 圆形 */
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.3s ease;
+  color: #666;
+  /* 图标默认颜色 */
+}
+
+.icon-btn:hover {
+  background-color: #f0f0f0;
+  /* 鼠标悬停微微变灰 */
+  color: #333;
+}
+
+.icon-btn.recording {
+  color: #ff4d4f;
+  /* 图标变红 */
+  background-color: rgba(255, 77, 79, 0.1);
+  /* 背景淡淡的红 */
+  animation: pulse-red 1.5s infinite;
+}
+
+@keyframes pulse-red {
+  0% {
+    box-shadow: 0 0 0 0 rgba(255, 77, 79, 0.4);
+  }
+
+  70% {
+    box-shadow: 0 0 0 10px rgba(255, 77, 79, 0);
+  }
+
+  100% {
+    box-shadow: 0 0 0 0 rgba(255, 77, 79, 0);
+  }
+}
+
+.send-btn {
+  padding: 8px 20px;
+  border-radius: 20px;
+  border: none;
+  background-color: #1890ff;
+  color: white;
+  cursor: pointer;
+  font-weight: bold;
+  font-size: 14px;
+  transition: background 0.3s;
+}
+
+.send-btn:hover {
+  background-color: #40a9ff;
+}

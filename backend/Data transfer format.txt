@@ -1,0 +1,7 @@
+{
+    "sender": "user/ai/system",
+    "format": "text",
+    "content": "Hello, world!",
+    "time": "2026-01-01T02:30:00.000Z",
+    "live2d_emotion": "happy"
+}

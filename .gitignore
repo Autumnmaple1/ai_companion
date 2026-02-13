@@ -1,0 +1,41 @@
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*.class
+
+# Environments
+.env
+.venv
+env/
+venv/
+ENV/
+
+# OS / IDE
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+
+# Frontend
+frontend/node_modules/
+frontend/dist/
+frontend/.env*
+
+# AI Models & Weights (Large files)
+*.ckpt
+*.pth
+*.onnx
+*.zip
+*.tar
+*.gz
+ai_modules/onnx_models/
+ai_modules/TTS_model/
+
+# GPT-SoVITS specific
+GPT-SoVITS-v2pro-20250604-nvidia50/runtime/
+GPT-SoVITS-v2pro-20250604-nvidia50/logs/
+GPT-SoVITS-v2pro-20250604-nvidia50/output/
+GPT-SoVITS-v2pro-20250604-nvidia50/TEMP/
+GPT-SoVITS-v2pro-20250604-nvidia50/GPT_weights*/
+GPT-SoVITS-v2pro-20250604-nvidia50/SoVITS_weights*/
+GPT-SoVITS-v2pro-20250604-nvidia50/python/
