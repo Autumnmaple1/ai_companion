@@ -13,6 +13,15 @@ OUTPUT_DIR = MODEL_ROOT / "output_audio"
 # GPT-SoVITS API 配置
 GPT_SOVITS_URL = "http://127.0.0.1:9880"
 
+# 全局 aiohttp 会话，避免频繁握手
+_session = None
+
+async def get_session():
+    global _session
+    if _session is None:
+        _session = aiohttp.ClientSession()
+    return _session
+
 # 当前使用的模型权重
 CURRENT_GPT_WEIGHT = str(MODEL_ROOT / "yoimiya.ckpt")
 CURRENT_SOVITS_WEIGHT = str(MODEL_ROOT / "yoimiya.pth")
@@ -39,14 +48,17 @@ async def gpt_sovits_tts(text, ref_audio_path, prompt_text, language="zh"):
     }
 
     try:
-        async with aiohttp.ClientSession() as session:
-            async with session.post(f"{GPT_SOVITS_URL}/tts", json=payload) as response:
-                if response.status == 200:
-                    return await response.read()
-                else:
-                    error_json = await response.json()
-                    print(f"GPT-SoVITS API 错误: {error_json}")
-                    return None
+        session = await get_session()
+        async with session.post(f"{GPT_SOVITS_URL}/tts", json=payload) as response:
+            if response.status == 200:
+                return await response.read()
+            else:
+                try:
+                    error_detail = await response.json()
+                except:
+                    error_detail = await response.text()
+                print(f"GPT-SoVITS API 错误 (状态码 {response.status}): {error_detail}")
+                return None
     except Exception as e:
         print(f"GPT-SoVITS 请求异常: {e}")
         return None

@@ -40,7 +40,7 @@ async def generate_response(prompt: str) -> str:
         # 在线程池中运行同步的 OpenAI 客户端调用，防止阻塞 asyncio
         response = await asyncio.to_thread(
             client.chat.completions.create,
-            model="qwen3:8b",  # 请确保你本地已通过 `ollama run qwen3` 下载了对应模型
+            model="qwen2.5:7b",  # 请确保你本地已通过 `ollama run qwen2.5` 下载了对应模型
             messages=[
                 {"role": "system", "content": SYSTEM_PROMPT},
                 {"role": "user", "content": prompt},
@@ -68,7 +68,7 @@ async def generate_response_stream(prompt: str):
     """
     try:
         response = await async_client.chat.completions.create(
-            model="qwen3:8b",
+            model="qwen2.5:7b",
             messages=[
                 {"role": "system", "content": SYSTEM_PROMPT},
                 {"role": "user", "content": prompt},

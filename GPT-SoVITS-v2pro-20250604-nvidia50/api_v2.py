@@ -104,6 +104,49 @@ RESP:
 import os
 import sys
 import traceback
+
+
+# --- 自动修复 CUDA/cuDNN DLL 加载路径 ---
+def add_cuda_dll_path():
+    if sys.platform == "win32":
+        import site
+
+        # 1. 自动搜索 site-packages/nvidia 下的 bin 目录
+        packages_paths = site.getsitepackages()
+        if hasattr(site, "getusersitepackages"):
+            packages_paths.append(site.getusersitepackages())
+
+        for base_path in packages_paths:
+            nvidia_path = os.path.join(base_path, "nvidia")
+            if os.path.exists(nvidia_path):
+                for root, dirs, files in os.walk(nvidia_path):
+                    if "bin" in dirs:
+                        bin_path = os.path.abspath(os.path.join(root, "bin"))
+                        try:
+                            os.add_dll_directory(bin_path)
+                        except:
+                            pass
+
+        # 2. 补充搜索系统默认 CUDA 路径（针对你电脑上的 v12.9）
+        cuda_bin = r"C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v12.9\bin"
+        if os.path.exists(cuda_bin):
+            try:
+                os.add_dll_directory(cuda_bin)
+            except:
+                pass
+
+        # 3. 补充搜索你电脑上的 cuDNN 专用路径
+        cudnn_bin = r"C:\Program Files\NVIDIA\CUDNN\v9.18\bin\12.9\x64"
+        if os.path.exists(cudnn_bin):
+            try:
+                os.add_dll_directory(cudnn_bin)
+            except:
+                pass
+
+
+add_cuda_dll_path()
+# --------------------------------------
+
 from typing import Generator, Union
 
 now_dir = os.getcwd()
@@ -117,6 +160,13 @@ import signal
 import asyncio
 import numpy as np
 import soundfile as sf
+import torchaudio
+
+try:
+    if "soundfile" in torchaudio.list_audio_backends():
+        torchaudio.set_audio_backend("soundfile")
+except:
+    pass
 from fastapi import FastAPI, Response
 from fastapi.responses import StreamingResponse, JSONResponse
 import uvicorn
