@@ -12,6 +12,11 @@ import base64
 import uvicorn
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 
+# --- Mock 测试配置 ---
+USE_MOCK = False  # 改为 True 开启 Mock 模式，不走 LLM
+MOCK_RESPONSE = "[happy]你好！这是一段用于测试的固定文字。看到这段话说明墨客模式已开启，语音合成正在工作。"
+# --------------------
+
 app = FastAPI()
 
 
@@ -90,8 +95,8 @@ def data_construct(
 manager = ConnectionManager()
 
 
-# 并发限制信号量（建议 2-3 以兼顾速度和稳定性）
-TTS_SEMAPHORE = asyncio.Semaphore(3)
+# 并发限制信号量（对于 V4 模型建议设为 1，优先保证首句合成速度）
+TTS_SEMAPHORE = asyncio.Semaphore(2)
 
 
 async def tts_worker(text, emotion, index, websocket, context):
@@ -184,13 +189,25 @@ async def websocket_endpoint(websocket: WebSocket):
                 # --- 单元合并状态 ---
                 first_sent_sent = False
                 unit_text_buffer = []
-                UNIT_SIZE = 2
 
                 # 断句符号优化
                 hard_terminators = ("。", "！", "？", "!", "?", "\n")
                 soft_terminators = ("，", ",", "；", ";")
 
-                async for chunk in ai_modules.LLM.generate_response_stream(text):
+                # --- LLM 响应流获取 (Mock 或 Real) ---
+                if USE_MOCK:
+
+                    async def mock_generator():
+                        # 模拟 LLM 逐字吐出的效果
+                        for i in range(0, len(MOCK_RESPONSE), 4):
+                            yield MOCK_RESPONSE[i : i + 4]
+                            await asyncio.sleep(0.05)
+
+                    response_stream = mock_generator()
+                else:
+                    response_stream = ai_modules.LLM.generate_response_stream(text)
+
+                async for chunk in response_stream:
                     if first_token_time is None:
                         first_token_time = (time.time() - llm_start) * 1000
                         print(
@@ -209,23 +226,33 @@ async def websocket_endpoint(websocket: WebSocket):
                             emotion_found = True
                             sentence_buffer = re.sub(r"\[.*?\]", "", sentence_buffer)
 
-                    # 2. 检查逻辑：首句极速，后续积累
-                    should_split = False
-                    if any(t in chunk for t in hard_terminators):
-                        should_split = True
-                    elif (
-                        not first_sent_sent
-                        and len(sentence_buffer) > 8
-                        and any(t in chunk for t in soft_terminators)
-                    ):
-                        should_split = True
-                    elif len(sentence_buffer) > 25 and any(
-                        t in chunk for t in soft_terminators
-                    ):
-                        should_split = True
+                    # 2. 检查逻辑：精准断句 (避免将下一句的开头带入当前句)
+                    term_in_chunk_idx = -1
+                    for i, char in enumerate(chunk):
+                        if char in hard_terminators:
+                            term_in_chunk_idx = i
+                            break
+                        if char in soft_terminators:
+                            # 计算到当前字符为止的缓冲区长度
+                            current_buf_len = len(sentence_buffer) - (len(chunk) - i)
+                            if not first_sent_sent and current_buf_len > 8:
+                                term_in_chunk_idx = i
+                                break
+                            if current_buf_len > 25:
+                                term_in_chunk_idx = i
+                                break
 
-                    if should_split:
-                        clean_text = re.sub(r"\[.*?\]", "", sentence_buffer).strip()
+                    if term_in_chunk_idx != -1:
+                        # 找到切分点 (包含标点符号)
+                        split_pos = (
+                            len(sentence_buffer) - (len(chunk) - term_in_chunk_idx) + 1
+                        )
+                        raw_sentence = sentence_buffer[:split_pos]
+                        sentence_buffer = sentence_buffer[
+                            split_pos:
+                        ]  # 剩余内容留给下一句
+
+                        clean_text = re.sub(r"\[.*?\]", "", raw_sentence).strip()
                         if clean_text:
                             # 文本消息
                             msg = data_construct(
@@ -242,11 +269,15 @@ async def websocket_endpoint(websocket: WebSocket):
 
                             # TTS 调度
                             current_emo = emotion_ref[0] or "normal"
-                            if not first_sent_sent:
+                            unit_text_buffer.append(clean_text)
+
+                            # 合并策略：固定每 2 句合成一次
+                            if len(unit_text_buffer) >= 2:
+                                combo = " ".join(unit_text_buffer)
                                 tts_tasks.append(
                                     asyncio.create_task(
                                         tts_worker(
-                                            clean_text,
+                                            combo,
                                             current_emo,
                                             sentence_index,
                                             websocket,
@@ -255,25 +286,8 @@ async def websocket_endpoint(websocket: WebSocket):
                                     )
                                 )
                                 sentence_index += 1
+                                unit_text_buffer = []
                                 first_sent_sent = True
-                            else:
-                                unit_text_buffer.append(clean_text)
-                                if len(unit_text_buffer) >= UNIT_SIZE:
-                                    combo = " ".join(unit_text_buffer)
-                                    tts_tasks.append(
-                                        asyncio.create_task(
-                                            tts_worker(
-                                                combo,
-                                                current_emo,
-                                                sentence_index,
-                                                websocket,
-                                                context,
-                                            )
-                                        )
-                                    )
-                                    sentence_index += 1
-                                    unit_text_buffer = []
-                        sentence_buffer = ""
                     # 结束当前 chunk 处理
                 # 结束 LLM stream
 

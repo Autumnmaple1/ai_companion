@@ -3,14 +3,14 @@ import os
 import asyncio
 import re
 
-# 初始化 Ollama 客户端 (Ollama 兼容 OpenAI API 格式)
+# 初始化 DashScope 客户端 (兼容 OpenAI API 格式)
 client = OpenAI(
-    base_url="http://localhost:11434/v1",
-    api_key="ollama",
+    base_url="https://dashscope.aliyuncs.com/compatible-mode/v1",
+    api_key="sk-50532be26ba44784a7005797b4056b4f",  # 请在这里填写你的 DashScope API Key
 )
 async_client = AsyncOpenAI(
-    base_url="http://localhost:11434/v1",
-    api_key="ollama",
+    base_url="https://dashscope.aliyuncs.com/compatible-mode/v1",
+    api_key="sk-50532be26ba44784a7005797b4056b4f",  # 请在这里填写你的 DashScope API Key
 )
 
 # 角色设定，通过 Few-shot 和严格规则解决空回复问题
@@ -34,13 +34,13 @@ SYSTEM_PROMPT = """你是一个名为'宵宫'的虚拟 AI 伴侣。
 
 async def generate_response(prompt: str) -> str:
     """
-    通过本地 Ollama 模型生成带情感标签的回复
+    通过 DashScope LLM 模型生成带情感标签的回复
     """
     try:
         # 在线程池中运行同步的 OpenAI 客户端调用，防止阻塞 asyncio
         response = await asyncio.to_thread(
             client.chat.completions.create,
-            model="qwen2.5:7b",  # 请确保你本地已通过 `ollama run qwen2.5` 下载了对应模型
+            model="qwen3-max",
             messages=[
                 {"role": "system", "content": SYSTEM_PROMPT},
                 {"role": "user", "content": prompt},
@@ -58,7 +58,7 @@ async def generate_response(prompt: str) -> str:
         return reply
 
     except Exception as e:
-        print(f"Ollama 调用失败: {e}")
+        print(f"LLM 调用失败: {e}")
         return "[normal]对不起，我现在的头脑有点混乱，能再说一遍吗？"
 
 
@@ -68,7 +68,7 @@ async def generate_response_stream(prompt: str):
     """
     try:
         response = await async_client.chat.completions.create(
-            model="qwen2.5:7b",
+            model="qwen3-max",
             messages=[
                 {"role": "system", "content": SYSTEM_PROMPT},
                 {"role": "user", "content": prompt},
@@ -83,14 +83,14 @@ async def generate_response_stream(prompt: str):
                 yield chunk.choices[0].delta.content
 
     except Exception as e:
-        print(f"Ollama 流式调用失败: {e}")
+        print(f"LLM 流式调用失败: {e}")
         yield "[normal]对不起，我现在的头脑有点混乱，能再说一遍吗？"
 
 
 if __name__ == "__main__":
 
     async def test():
-        print("正在请求 Ollama...")
+        print("正在请求 LLM...")
         res = await generate_response("你好，你是谁？")
         print(f"AI 回复: {res}")
 

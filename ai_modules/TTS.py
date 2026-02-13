@@ -16,11 +16,13 @@ GPT_SOVITS_URL = "http://127.0.0.1:9880"
 # 全局 aiohttp 会话，避免频繁握手
 _session = None
 
+
 async def get_session():
     global _session
     if _session is None:
         _session = aiohttp.ClientSession()
     return _session
+
 
 # 当前使用的模型权重
 CURRENT_GPT_WEIGHT = str(MODEL_ROOT / "yoimiya.ckpt")
@@ -41,10 +43,11 @@ async def gpt_sovits_tts(text, ref_audio_path, prompt_text, language="zh"):
         "prompt_text": prompt_text,
         "prompt_lang": language,
         "text_split_method": "cut5",
-        "batch_size": 1,
+        "batch_size": 2,         
         "media_type": "wav",
         "streaming_mode": False,
-        "parallel_infer": True,  # 启用 API 内部并行推理
+        "parallel_infer": True,
+        "fragment_interval": 0.3, # 在句子/切片之间添加 0.3 秒停顿
     }
 
     try:
@@ -95,32 +98,35 @@ async def set_model_weights(gpt_path, sovits_path):
 async def text_to_speech(text, emotion=None):
     """
     转换文本为对应的语音并直接返回音频数据
-
-    Args:
-        text: 要合成的文本
-        emotion: 表情/情感倾向 (angry, happy, normal, questioning, sad)
     """
-    # 1. 情感回退机制
+    # 1. 情感映射与回退机制
     emotion = emotion or "normal"
+    
+    # 定义支持的情感列表
+    available_emotions = ["normal", "happy", "sad", "angry", "questioning"]
+    if emotion not in available_emotions:
+        emotion = "normal"
+
     ref_text_path = MODEL_ROOT / "reference_audio" / f"{emotion}.txt"
     ref_audio_path = MODEL_ROOT / "reference_audio" / f"{emotion}.wav"
 
+    # 如果对应情感文件不存在，统一回退到 normal 并不再重复报警告
     if not ref_text_path.exists() or not ref_audio_path.exists():
-        print(f"警告: 未找到表情 {emotion} 的参考文件，回退到 normal")
         emotion = "normal"
         ref_text_path = MODEL_ROOT / "reference_audio" / "normal.txt"
         ref_audio_path = MODEL_ROOT / "reference_audio" / "normal.wav"
 
     # 读取参考文本
-    try:
-        with open(ref_text_path, "r", encoding="utf-8") as f:
-            reference_text = f.read().strip()
-    except Exception as e:
-        print(f"读取参考文本失败: {e}")
-        reference_text = ""
+    reference_text = ""
+    if ref_text_path.exists():
+        try:
+            with open(ref_text_path, "r", encoding="utf-8") as f:
+                reference_text = f.read().strip()
+        except:
+            pass
 
     # 2. 使用 GPT-SoVITS API 合成语音
-    print(f"使用 GPT-SoVITS API 合成语音 (表情: {emotion})...")
+    # print(f"使用 GPT-SoVITS API 合成语音 (表情: {emotion})...")
     return await gpt_sovits_tts(text, ref_audio_path, reference_text)
 
 
