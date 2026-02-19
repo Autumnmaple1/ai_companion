@@ -65,6 +65,61 @@ class StreamProcessor:
         self.hard_terminators = ("。", "！", "？", "!", "?", "\n")
         self.soft_terminators = ("；", ";")
 
+    async def process_full_text(self, text: str):
+        """
+        一次性处理整段回复文字 (架构调整：一次性接收)
+        """
+        self.full_response = text
+
+        # 提取每一句的情感和文字
+        # 我们可以利用正则分割情感标签或利用之前的分句符号
+        # [happy]你好呀！[questioning]要出去玩吗？ -> 分成两部分
+
+        # 使用正则表达式分割：找到 [标签] 为起始点的每一段
+        parts = re.split(r"(\[(?:happy|sad|angry|normal|questioning)\])", text)
+        # parts [0] 可能是标签前内容, [1] 标签, [2] 标签后内容...
+
+        current_emo = self.current_emotion
+
+        # 遍历 parts
+        i = 0
+        while i < len(parts):
+            p = parts[i]
+            if not p:
+                i += 1
+                continue
+
+            if re.match(r"\[(happy|sad|angry|normal|questioning)\]", p):
+                current_emo = p.strip("[]")
+                i += 1
+                # 后面跟着的一段文本
+                if i < len(parts):
+                    content = parts[i].strip()
+                    if content:
+                        # 内部再按标点进行进一步细分句子处理，以减小单次合成粒度
+                        sentences = self._split_to_sentences(content)
+                        for sent in sentences:
+                            self.current_emotion = current_emo
+                            await self._handle_sentence(sent)
+                i += 1
+            else:
+                # 处理没有标签开头的内容（通常是第一段）
+                sentences = self._split_to_sentences(p.strip())
+                for sent in sentences:
+                    self.current_emotion = current_emo
+                    await self._handle_sentence(sent)
+                i += 1
+
+        # 处理完成，冲刷剩余 buffer 并等待
+        await self.finalize()
+
+    def _split_to_sentences(self, text: str) -> list:
+        """辅助方法：按标点符号细分句子"""
+        # 使用正则分句 (保留标点)
+        pattern = r"([^。！？!?;；\n]+[。！？!?;；\n]*)"
+        results = re.findall(pattern, text)
+        return [r.strip() for r in results if r.strip()]
+
     async def process_chunk(self, chunk: str):
         self.full_response += chunk
         self.sentence_buffer += chunk
@@ -76,7 +131,7 @@ class StreamProcessor:
         # 1. 优先检查情感标签的开始 [
         if "[" in chunk:
             # 找到 [ 在 chunk 中的相对位置
-            tag_start_idx = chunk.find("[") 
+            tag_start_idx = chunk.find("[")
             # 只有当 [ 前面有内容时，才把之前的内容切为一个句子
             # 这里的逻辑是：[ 通常意味着新的一段开始
             if len(self.sentence_buffer) - (len(chunk) - tag_start_idx) > 0:
@@ -120,14 +175,18 @@ class StreamProcessor:
             self.last_msg_emotion is not None
             and self.current_emotion != self.last_msg_emotion
         ):
-            # 标记 ID 更新
-            self.response_id = int(time.time() * 1000)
+            # 标记 ID 更新，确保在快速循环中生成唯一且递增的 ID
+            new_id = int(time.time() * 1000)
+            self.response_id = new_id if new_id > self.response_id else self.response_id + 1
 
         self.last_msg_emotion = self.current_emotion
 
         # TTS 逻辑：如果情感变化了，必须立即冲掉之前的 buffer，保证语气一致
         if self.current_emotion != self.buffer_emotion and self.unit_text_buffer:
             await self._flush_tts_buffer()
+            # 如果在合并首句过程中发生情感变化导致冲刷，需标记首句已发送
+            if not self.first_sent_sent:
+                self.first_sent_sent = True
 
         if not self.unit_text_buffer:
             # 开始新缓冲区时，同步当前的消息 ID
@@ -137,14 +196,14 @@ class StreamProcessor:
         self.buffer_emotion = self.current_emotion
 
         # 合并策略优化：
+        total_len = sum(len(s) for s in self.unit_text_buffer)
         if not self.first_sent_sent:
-            # 首句立即发送，保证首字响应速度
-            await self._flush_tts_buffer()
-            self.first_sent_sent = True
+            # 首句响应至少要 15 字，不够就合并后续句子直到 15 字
+            if total_len >= 15:
+                await self._flush_tts_buffer()
+                self.first_sent_sent = True
         else:
             # 除首句外，累积多句直到总字数大于 40 时发送（或等待结束时 finalize 冲刷）
-            # 这样可以在保证性能的同时，让 TTS 合成更长的文本，语调更自然
-            total_len = sum(len(s) for s in self.unit_text_buffer)
             if total_len > 40:
                 await self._flush_tts_buffer()
 

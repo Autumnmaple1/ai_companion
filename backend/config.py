@@ -18,7 +18,8 @@ class Settings:
     AI_MODULES_DIR = PROJECT_ROOT / "ai_modules"
 
     # 服务器配置
-    LETTA_URL = os.getenv("LETTA_URL", "http://localhost:8083")
+    LETTA_URL = os.getenv("LETTA_URL", "http://localhost:8283")
+    LETTA_AGENT_ID = os.getenv("LETTA_AGENT_ID", "")
     SERVER_HOST = os.getenv("SERVER_HOST", "127.0.0.1")
     SERVER_PORT = int(os.getenv("SERVER_PORT", 8000))
 

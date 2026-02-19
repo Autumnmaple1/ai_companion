@@ -133,38 +133,28 @@ async def websocket_endpoint(websocket: WebSocket):
                 # ─── 状态管理 ───
                 response_id = int(time.time() * 1000)
                 llm_start = time.time()
-                first_token_time = None
 
-                # 初始化流式处理器
+                # 初始化处理器 (架构调整：一次性接收)
                 processor = StreamProcessor(websocket, manager, response_id)
 
-                # --- LLM 响应流获取 (Mock 或 Real) ---
+                # --- LLM 响应获取 (Mock 或 Real) ---
                 if USE_MOCK:
-
-                    async def mock_generator():
-                        for i in range(0, len(MOCK_RESPONSE), 4):
-                            yield MOCK_RESPONSE[i : i + 4]
-                            await asyncio.sleep(0.05)
-
-                    response_stream = mock_generator()
+                    full_text = MOCK_RESPONSE
                 else:
-                    response_stream = ai_modules.LLM.generate_response_stream(text)
+                    # 改为一次性生成，不走 stream
+                    full_text = await ai_modules.LLM.generate_response(text)
 
-                async for chunk in response_stream:
-                    if first_token_time is None:
-                        first_token_time = (time.time() - llm_start) * 1000
-                        print(
-                            f"[性能监控-LLM首字]: 耗时 {first_token_time:.2f}ms (打字机效果开始)"
-                        )
+                llm_duration = (time.time() - llm_start) * 1000
+                print(f"[性能监控-LLM]: 耗时 {llm_duration:.2f}ms | 全文: {full_text[:50]}...")
+                
+                # 这里的打印是为了给控制台看完整回复
+                print(f"AI回复全文: {full_text}")
 
-                    print(chunk, end="", flush=True)
-                    await processor.process_chunk(chunk)
-
-                # 结束处理
-                await processor.finalize()
+                # 将全文交给处理器，由其内部进行句子切分和 TTS 调度
+                await processor.process_full_text(full_text)
 
                 llm_total_duration = (time.time() - llm_start) * 1000
-                print(f"\n[性能监控-LLM结束]: 总生成时间 {llm_total_duration:.2f}ms")
+                print(f"[性能监控-全链路处理完成]: 总耗时 {llm_total_duration:.2f}ms")
 
             except Exception as e:
                 print(f"全链路处理异常: {e}")

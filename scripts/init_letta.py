@@ -6,9 +6,9 @@ from dotenv import load_dotenv
 # 加载环境变量
 load_dotenv()
 
-LETTA_URL = os.getenv("LETTA_URL", "http://localhost:8083")
-# 注意：在 docker-compose 中，letta 容器内部监听 8083，并映射到宿主机的 8083
-# 如果脚本在宿主机运行，通常使用 localhost:8083
+LETTA_URL = os.getenv("LETTA_URL", "http://localhost:8283")
+# 注意：在 docker-compose 中，letta 容器内部监听 8283，并映射到宿主机的 8283
+# 如果脚本在宿主机运行，通常使用 localhost:8283
 
 CHARACTER_NAME = os.getenv("CHARACTER_NAME", "yoimiya")
 
@@ -23,14 +23,24 @@ def init_letta_agent():
     with open(char_config_path, "r", encoding="utf-8") as f:
         char_data = json.load(f)
         system_prompt = char_data["llm"]["system_prompt"]
+        print(f"已加载角色配置，system prompt 长度: {len(system_prompt)} 字符")
         display_name = char_data.get("display_name", CHARACTER_NAME)
 
     # 2. 检查 agent 是否已存在
     try:
         print(f"尝试连接 Letta Server: {LETTA_URL} ...")
-        response = httpx.get(f"{LETTA_URL}/v1/agents")
+        # 增加 follow_redirects=True 处理 307 重定向
+        response = httpx.get(f"{LETTA_URL}/v1/agents", follow_redirects=True)
         if response.status_code == 200:
-            agents = response.json().get("agents", [])
+            data = response.json()
+            # Letta API 可能直接返回列表，也可能包裹在 "agents" 键下
+            if isinstance(data, list):
+                agents = data
+            elif isinstance(data, dict):
+                agents = data.get("agents", [])
+            else:
+                agents = []
+
             for agent in agents:
                 if agent["name"] == CHARACTER_NAME:
                     print(
@@ -48,7 +58,7 @@ def init_letta_agent():
             "name": CHARACTER_NAME,
             "memory": {
                 "persona": f"名字是 {display_name}。\n{system_prompt}",
-                "human": "你是一个充满好奇心的用户。",
+                "human": "你是一个用户。",
             },
             "llm_config": {
                 "model": os.getenv("LLM_MODEL", "qwen3.5-plus"),
@@ -57,21 +67,24 @@ def init_letta_agent():
                     "https://dashscope.aliyuncs.com/compatible-mode/v1",
                 ),
                 "model_endpoint_type": "openai",
-                "context_window": 32000,
+                "context_window": 300000,
             },
             "embedding_config": {
-                "model": "text-embedding-v4",
-                "model_endpoint": os.getenv(
+                "embedding_model": "text-embedding-v4",
+                "embedding_endpoint": os.getenv(
                     "DASHSCOPE_BASE_URL",
                     "https://dashscope.aliyuncs.com/compatible-mode/v1",
                 ),
-                "model_endpoint_type": "openai",
-                "dim": 1536,
+                "embedding_endpoint_type": "openai",
+                "embedding_dim": 1536,
             },
         }
 
         print(f"正在创建 Letta Agent '{CHARACTER_NAME}'...")
-        create_resp = httpx.post(f"{LETTA_URL}/v1/agents", json=create_payload)
+        # 增加 follow_redirects=True 处理 307 重定向
+        create_resp = httpx.post(
+            f"{LETTA_URL}/v1/agents", json=create_payload, follow_redirects=True
+        )
         if create_resp.status_code == 200 or create_resp.status_code == 201:
             agent_id = create_resp.json()["id"]
             print(f"成功创建 Letta Agent! ID: {agent_id}")

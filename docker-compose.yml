@@ -19,14 +19,14 @@ services:
               count: all
               capabilities: [ gpu ]
     restart: always
-    # Letta 服务
+  # Letta 服务
   letta:
     image: letta/letta:latest
     container_name: letta_server
     ports:
-      - "8083:8083"
+      - "8283:8283"
     environment:
-      - LETTA_PG_URI=postgresql+psycopg2://letta:letta@db:5432/letta
+      - LETTA_PG_URI=postgresql://letta:letta@db:5432/letta
       # 预设默认 LLM 配置 (通义千问)
       - LETTA_DEFAULT_LLM_CONFIG_MODEL=qwen3.5-plus
       - LETTA_DEFAULT_LLM_CONFIG_MODEL_ENDPOINT=https://dashscope.aliyuncs.com/compatible-mode/v1
@@ -35,13 +35,15 @@ services:
       - LETTA_DEFAULT_EMBEDDING_CONFIG_ENDPOINT=https://dashscope.aliyuncs.com/compatible-mode/v1
       - LETTA_DEFAULT_EMBEDDING_CONFIG_ENDPOINT_TYPE=openai
       - DASHSCOPE_API_KEY=${DASHSCOPE_API_KEY}
+      - OPENAI_API_KEY=${DASHSCOPE_API_KEY}
     depends_on:
-      - db
+      db:
+        condition: service_healthy
     restart: always
 
   # Letta 依赖的数据库
   db:
-    image: postgres:15
+    image: ankane/pgvector:latest
     container_name: letta_db
     environment:
       - POSTGRES_DB=letta
@@ -49,4 +51,10 @@ services:
       - POSTGRES_PASSWORD=letta
     volumes:
       - ./letta_data:/var/lib/postgresql/data
+      - ./init-db.sql:/docker-entrypoint-initdb.d/init-db.sql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U letta -d letta"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
     restart: always
