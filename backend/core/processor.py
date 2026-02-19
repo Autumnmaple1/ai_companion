@@ -59,10 +59,11 @@ class StreamProcessor:
         self.first_sent_sent = False
         self.unit_text_buffer = []
         self.buffer_emotion = "normal"  # 当前 buffer 中文字的情感
+        self.buffer_id = response_id  # 当前 buffer 对应的消息 ID
 
         # 断句符号优化
         self.hard_terminators = ("。", "！", "？", "!", "?", "\n")
-        self.soft_terminators = ("，", ",", "；", ";")
+        self.soft_terminators = ("；", ";")
 
     async def process_chunk(self, chunk: str):
         self.full_response += chunk
@@ -75,7 +76,7 @@ class StreamProcessor:
         # 1. 优先检查情感标签的开始 [
         if "[" in chunk:
             # 找到 [ 在 chunk 中的相对位置
-            tag_start_idx = chunk.find("[")
+            tag_start_idx = chunk.find("[") 
             # 只有当 [ 前面有内容时，才把之前的内容切为一个句子
             # 这里的逻辑是：[ 通常意味着新的一段开始
             if len(self.sentence_buffer) - (len(chunk) - tag_start_idx) > 0:
@@ -119,25 +120,33 @@ class StreamProcessor:
             self.last_msg_emotion is not None
             and self.current_emotion != self.last_msg_emotion
         ):
-            # 更新 ID 以开启新气泡
+            # 标记 ID 更新
             self.response_id = int(time.time() * 1000)
 
         self.last_msg_emotion = self.current_emotion
-
-        # 【音画同步改动】不再在此处发送文本消息
-        # 文本将随音频一起在 _flush_audio_queue 中发送
 
         # TTS 逻辑：如果情感变化了，必须立即冲掉之前的 buffer，保证语气一致
         if self.current_emotion != self.buffer_emotion and self.unit_text_buffer:
             await self._flush_tts_buffer()
 
+        if not self.unit_text_buffer:
+            # 开始新缓冲区时，同步当前的消息 ID
+            self.buffer_id = self.response_id
+
         self.unit_text_buffer.append(clean_text)
         self.buffer_emotion = self.current_emotion
 
-        # 合并策略：情感相同且满足 2 句则合成
-        if len(self.unit_text_buffer) >= 2:
+        # 合并策略优化：
+        if not self.first_sent_sent:
+            # 首句立即发送，保证首字响应速度
             await self._flush_tts_buffer()
             self.first_sent_sent = True
+        else:
+            # 除首句外，累积多句直到总字数大于 40 时发送（或等待结束时 finalize 冲刷）
+            # 这样可以在保证性能的同时，让 TTS 合成更长的文本，语调更自然
+            total_len = sum(len(s) for s in self.unit_text_buffer)
+            if total_len > 40:
+                await self._flush_tts_buffer()
 
     async def _flush_tts_buffer(self):
         """将当前 buffer 中的文本提交合成"""
@@ -147,7 +156,7 @@ class StreamProcessor:
         combo = " ".join(self.unit_text_buffer)
         emo = self.buffer_emotion
         idx = self.sentence_index
-        resp_id = self.response_id
+        resp_id = self.buffer_id  # 使用进入缓冲区时记录的消息 ID
 
         self.tts_tasks.append(
             asyncio.create_task(self._tts_worker(combo, emo, idx, resp_id))

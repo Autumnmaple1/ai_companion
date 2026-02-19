@@ -1,0 +1,20 @@
+services:
+  gpt-sovits-api:
+    build:
+      context: ./GPT-SoVITS-v2pro-20250604-nvidia50
+      dockerfile: Dockerfile
+    container_name: gpt_sovits_v2
+    ports:
+      - "9880:9880"
+    volumes:
+      - ./GPT-SoVITS-v2pro-20250604-nvidia50/GPT_weights_v2ProPlus:/app/GPT_weights_v2ProPlus
+      - ./GPT-SoVITS-v2pro-20250604-nvidia50/SoVITS_weights_v2ProPlus:/app/SoVITS_weights_v2ProPlus
+      - ./GPT-SoVITS-v2pro-20250604-nvidia50/reference_audio:/app/reference_audio
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [ gpu ]
+    restart: always

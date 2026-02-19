@@ -37,18 +37,24 @@ async def gpt_sovits_tts(text, ref_audio_path, prompt_text, language="zh"):
     """
     通过 GPT-SoVITS API 生成语音
     """
+    # 转换路径为 Docker 容器内部相对路径
+    ref_audio_path_obj = Path(ref_audio_path)
+    root_name = "GPT-SoVITS-v2pro-20250604-nvidia50"
+    if root_name in ref_audio_path_obj.parts:
+        idx = ref_audio_path_obj.parts.index(root_name)
+        ref_audio_path = "/".join(ref_audio_path_obj.parts[idx + 1 :])
+
     payload = {
         "text": text,
         "text_lang": language,
         "ref_audio_path": str(ref_audio_path),
         "prompt_text": prompt_text,
         "prompt_lang": language,
-        "text_split_method": "cut5",
-        "batch_size": 2,
+        "text_split_method": "cut1",
+        "batch_size": 1,
         "media_type": "wav",
         "streaming_mode": False,
         "parallel_infer": True,
-        "fragment_interval": 0.3,  # 在句子/切片之间添加 0.3 秒停顿
     }
 
     try:
@@ -74,6 +80,19 @@ async def set_model_weights(gpt_path, sovits_path):
     gpt_path: .ckpt 文件路径
     sovits_path: .pth 文件路径
     """
+    # 转换路径为 Docker 容器内部相对路径
+    root_name = "GPT-SoVITS-v2pro-20250604-nvidia50"
+
+    def to_relative(p):
+        path_obj = Path(p)
+        if root_name in path_obj.parts:
+            idx = path_obj.parts.index(root_name)
+            return "/".join(path_obj.parts[idx + 1 :])
+        return str(p)
+
+    gpt_path = to_relative(gpt_path)
+    sovits_path = to_relative(sovits_path)
+
     try:
         async with aiohttp.ClientSession() as session:
             # 设置 GPT 权重

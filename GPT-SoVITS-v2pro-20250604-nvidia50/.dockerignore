@@ -1,0 +1,7 @@
+runtime/
+TEMP/
+logs/
+output/
+__pycache__/
+*.bat
+*.ps1

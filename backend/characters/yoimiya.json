@@ -9,10 +9,10 @@
     "tts": {
         "engine": "gpt-sovits",
         "weights": {
-            "gpt": "ai_modules/TTS_model/yoimiya/yoimiya.ckpt",
-            "sovits": "ai_modules/TTS_model/yoimiya/yoimiya.pth"
+            "gpt": "GPT-SoVITS-v2pro-20250604-nvidia50/GPT_weights_v2ProPlus/yoimiya.ckpt",
+            "sovits": "GPT-SoVITS-v2pro-20250604-nvidia50/SoVITS_weights_v2ProPlus/yoimiya.pth"
         },
-        "reference_audio_dir": "ai_modules/TTS_model/yoimiya/reference_audio"
+        "reference_audio_dir": "GPT-SoVITS-v2pro-20250604-nvidia50/reference_audio"
     },
     "live2d": {
         "model_path": "/models/LSS/LSS.model3.json"
