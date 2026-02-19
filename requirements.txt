@@ -1,0 +1,28 @@
+# FastAPI 核心框架
+fastapi
+uvicorn
+websockets
+python-multipart
+
+# ASR 语音识别 (Faster-Whisper)
+faster-whisper
+ctranslate2 
+onnxruntime-gpu
+numpy
+soundfile
+pydub
+
+# LLM 大语言模型与网络请求
+openai
+httpx
+aiohttp
+aiofiles
+
+# 记忆系统 (Letta/MemGPT)
+letta
+
+# 工具类与配置管理
+python-dotenv
+pydantic
+pydantic-settings
+loguru

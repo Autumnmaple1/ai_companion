@@ -11,7 +11,8 @@ start "Backend Server" cmd /k "call conda activate test_ai && python backend\ser
 
 :: 3. 启动 Frontend
 echo [2/2] 正在启动 Frontend...
-start "Frontend Vue" cmd /k "cd /d frontend && npm run dev"
+:: 这里会先自动执行 npm install 确保依赖最新，然后再运行启动命令
+start "Frontend Web" cmd /k "cd /d frontend && echo 正在检查/安装前端依赖... && npm install && echo 正在开启前端服务... && npm run dev"
 
 echo ==========================================
 echo ? 所有服务已启动！
