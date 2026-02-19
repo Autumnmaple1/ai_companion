@@ -1,4 +1,5 @@
 import os
+import re
 import uuid
 import asyncio
 import aiohttp
@@ -119,6 +120,15 @@ async def text_to_speech(text, emotion=None):
     """
     转换文本为对应的语音并直接返回音频数据
     """
+    # 0. 文本预处理：将非常规标点（如 ~、～）替换为中文句号，并进行基础清洗
+    if text:
+        # 替换 ~ 为 。
+        text = re.sub(r"[~～]+", "。", text)
+        # 清理常见的聊天装饰符号
+        text = re.sub(r"[❤⭐♪★☆]+", "。", text)
+        # 合并重复的标点，避免合成过多冗余停顿
+        text = re.sub(r"[。，！？]{2,}", lambda m: m.group(0)[0], text)
+
     # 1. 情感映射与回退机制
     emotion = emotion or "normal"
 
