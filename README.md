@@ -19,6 +19,9 @@ ai_companion/
 *   **情绪驱动 Live2D**: AI 回复中自动注入表情标签（Happy/Sad等），驱动模型表情与口型。
 *   **高保真语音合成**: 接入云端 GPT-SoVITS (Vertin 维尔汀模型)，支持自动播放。
 *   **上下文管理**: 保留最近 10 轮对话记忆，对话更自然。
+*   **长期记忆 (Mem0)**: 基于 Mem0 云端 API 实现用户级长期记忆存储与检索。
+*   **多用户支持**: 前端用户选择器 (nrx/hym/guest)，记忆按 `user_id` 隔离。
+*   **TTS 降级处理**: 语音合成失败时自动降级，保证文本回复正常返回。
 
 ## 环境要求
 
@@ -27,7 +30,13 @@ ai_companion/
 建议使用 Conda 环境：
 
 ```bash
-pip install fastapi uvicorn dashscope requests
+pip install fastapi uvicorn dashscope requests mem0ai python-dotenv
+```
+
+需在项目根目录创建 `.env` 文件：
+```
+DASHSCOPE_API_KEY=your_dashscope_key
+MEM_API_KEY=your_mem0_api_key
 ```
 
 
@@ -68,13 +77,15 @@ npm run dev
     *   `ASR.py`: 语音转文字模块 (Automatic Speech Recognition)。
     *   `LLM.py`: 大语言模型交互模块 (Large Language Model)。
     *   `TTS.py`: 文字转语音模块 (Text-to-Speech)。
+    *   `MEM.py`: 长期记忆模块，封装 Mem0 API 的检索与存储。
 *   **frontend/src/Live2DViewer.jsx**: 负责加载和渲染 Live2D 模型组件。
 
 ## 注意事项
 
 1.  **浏览器权限**: 初次进入页面需点击“开启语音互动”按钮，以解锁浏览器自动播放音频的权限。
-2.  **API 配置**: 确保 `LLM.py` 中的 DashScope Key 有效，且 `TTS.py` 中的远程服务器地址已开启。
-3.  **缓存**: 项目已清理 redundant 缓存，开发过程中建议保持环境整洁。
+2.  **API 配置**: 确保 `.env` 中的 `DASHSCOPE_API_KEY` 和 `MEM_API_KEY` 有效。
+3.  **用户选择**: 前端左上角下拉框选择用户身份，记忆按用户隔离存储。
+4.  **缓存**: 项目已清理 redundant 缓存，开发过程中建议保持环境整洁。
 
 ## 许可证
 

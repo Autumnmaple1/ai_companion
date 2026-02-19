@@ -2,11 +2,22 @@ import { useState, useEffect, useRef } from 'react'
 import './App.css'
 import Live2DViewer from './Live2DViewer';
 
+// 用户选项配置
+const USER_OPTIONS = [
+  { value: 'nrx', label: 'NRX' },
+  { value: 'hym', label: 'HYM' },
+  { value: 'guest', label: '访客' }
+];
+
 function App() {
   const [messages, setMessages] = useState([]);
   const [currentEmotion, setCurrentEmotion] = useState("");
   const [playingMessageId, setPlayingMessageId] = useState(null); // 正在播放音频的消息 ID
   const [hasInteracted, setHasInteracted] = useState(false); // 是否已与页面交互（避开浏览限制）
+  // 用户 ID 状态，从 localStorage 初始化
+  const [userId, setUserId] = useState(() => {
+    return localStorage.getItem('ai_companion_user_id') || 'guest';
+  });
   const ws = useRef(null);
   const [showLogs, setShowLogs] = useState(false);
   const [inputValue, setInputValue] = useState("");
@@ -108,7 +119,8 @@ function App() {
         sender: "user",
         format: "text",
         content: inputValue,
-        time: new Date().toISOString()
+        time: new Date().toISOString(),
+        user_id: userId // 携带用户 ID
       }));
       setMessages(prev => [...prev, { role: "user", content: inputValue }]);
       setInputValue("");
@@ -143,7 +155,8 @@ function App() {
               type: "voice",
               format: "audio",
               content: base64String,
-              time: new Date().toISOString()
+              time: new Date().toISOString(),
+              user_id: userId // 携带用户 ID
             }));
             setMessages(prev => [...prev, { role: "system", content: "[语音消息已发送]" }]);
           }
@@ -181,6 +194,14 @@ function App() {
     audio.play().catch(e => console.log("Init audio failed", e));
   };
 
+  // 处理用户切换
+  const handleUserChange = (e) => {
+    const newUserId = e.target.value;
+    setUserId(newUserId);
+    localStorage.setItem('ai_companion_user_id', newUserId);
+    console.log(`[INFO] 用户切换为: ${newUserId}`);
+  };
+
   return (
     <div className="app-container" onClick={() => !hasInteracted && handleStart()}>
       {!hasInteracted && (
@@ -195,6 +216,13 @@ function App() {
         <div className="sidebar-header">
           <div className="sidebar-title">
             {showLogs ? "系统日志" : "历史对话"}
+          </div>
+          <div className="user-selector">
+            <select value={userId} onChange={handleUserChange} title="选择用户">
+              {USER_OPTIONS.map(opt => (
+                <option key={opt.value} value={opt.value}>{opt.label}</option>
+              ))}
+            </select>
           </div>
           <button
             className="icon-btn"

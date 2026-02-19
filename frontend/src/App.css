@@ -43,6 +43,7 @@
   margin-bottom: 15px;
   padding-bottom: 10px;
   border-bottom: 1px solid #f0f0f0;
+  gap: 8px;
 }
 
 .sidebar-header .icon-btn {
@@ -55,6 +56,33 @@
   font-weight: bold;
   text-align: center;
   color: #333;
+}
+
+/* 用户选择器样式 */
+.user-selector {
+  position: absolute;
+  left: 0;
+}
+
+.user-selector select {
+  padding: 4px 8px;
+  border-radius: 6px;
+  border: 1px solid #ddd;
+  background: rgba(255, 255, 255, 0.9);
+  font-size: 12px;
+  color: #333;
+  cursor: pointer;
+  outline: none;
+  transition: border-color 0.2s;
+}
+
+.user-selector select:hover {
+  border-color: #69ec85;
+}
+
+.user-selector select:focus {
+  border-color: #69ec85;
+  box-shadow: 0 0 0 2px rgba(105, 236, 133, 0.2);
 }
 
 .message-list {
