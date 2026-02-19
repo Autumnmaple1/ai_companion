@@ -1,4 +1,5 @@
 services:
+  #GPT-SoVITS 服务
   gpt-sovits-api:
     build:
       context: ./GPT-SoVITS-v2pro-20250604-nvidia50
@@ -17,4 +18,35 @@ services:
             - driver: nvidia
               count: all
               capabilities: [ gpu ]
+    restart: always
+    # Letta 服务
+  letta:
+    image: letta/letta:latest
+    container_name: letta_server
+    ports:
+      - "8083:8083"
+    environment:
+      - LETTA_PG_URI=postgresql+psycopg2://letta:letta@db:5432/letta
+      # 预设默认 LLM 配置 (通义千问)
+      - LETTA_DEFAULT_LLM_CONFIG_MODEL=qwen3.5-plus
+      - LETTA_DEFAULT_LLM_CONFIG_MODEL_ENDPOINT=https://dashscope.aliyuncs.com/compatible-mode/v1
+      - LETTA_DEFAULT_LLM_CONFIG_MODEL_ENDPOINT_TYPE=openai
+      - LETTA_DEFAULT_EMBEDDING_CONFIG_MODEL=text-embedding-v4
+      - LETTA_DEFAULT_EMBEDDING_CONFIG_ENDPOINT=https://dashscope.aliyuncs.com/compatible-mode/v1
+      - LETTA_DEFAULT_EMBEDDING_CONFIG_ENDPOINT_TYPE=openai
+      - DASHSCOPE_API_KEY=${DASHSCOPE_API_KEY}
+    depends_on:
+      - db
+    restart: always
+
+  # Letta 依赖的数据库
+  db:
+    image: postgres:15
+    container_name: letta_db
+    environment:
+      - POSTGRES_DB=letta
+      - POSTGRES_USER=letta
+      - POSTGRES_PASSWORD=letta
+    volumes:
+      - ./letta_data:/var/lib/postgresql/data
     restart: always

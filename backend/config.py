@@ -13,10 +13,12 @@ class Settings:
     BASE_DIR = PROJECT_ROOT
 
     # 路径配置
+
     CHARACTERS_DIR = PROJECT_ROOT / "backend" / "characters"
     AI_MODULES_DIR = PROJECT_ROOT / "ai_modules"
 
     # 服务器配置
+    LETTA_URL = os.getenv("LETTA_URL", "http://localhost:8083")
     SERVER_HOST = os.getenv("SERVER_HOST", "127.0.0.1")
     SERVER_PORT = int(os.getenv("SERVER_PORT", 8000))
 

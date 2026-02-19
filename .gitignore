@@ -30,6 +30,7 @@ frontend/.env*
 *.gz
 ai_modules/onnx_models/
 ai_modules/TTS_model/
+letta_data/
 
 # GPT-SoVITS specific
 GPT-SoVITS-v2pro-20250604-nvidia50/runtime/
