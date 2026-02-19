@@ -2,34 +2,22 @@ from openai import OpenAI, AsyncOpenAI
 import os
 import asyncio
 import re
+from backend.config import settings
+
+# 动态加载角色配置
+char_config = settings.get_character_config()
+SYSTEM_PROMPT = char_config["llm"]["system_prompt"]
+LLM_CONF = char_config["llm"]
 
 # 初始化 DashScope 客户端 (兼容 OpenAI API 格式)
 client = OpenAI(
-    base_url="https://dashscope.aliyuncs.com/compatible-mode/v1",
-    api_key="sk-50532be26ba44784a7005797b4056b4f",  # 请在这里填写你的 DashScope API Key
+    base_url=settings.LLM_BASE_URL,
+    api_key=settings.LLM_API_KEY,
 )
 async_client = AsyncOpenAI(
-    base_url="https://dashscope.aliyuncs.com/compatible-mode/v1",
-    api_key="sk-50532be26ba44784a7005797b4056b4f",  # 请在这里填写你的 DashScope API Key
+    base_url=settings.LLM_BASE_URL,
+    api_key=settings.LLM_API_KEY,
 )
-
-# 角色设定，通过 Few-shot 和严格规则解决空回复问题
-SYSTEM_PROMPT = """你是一个名为'宵宫'的虚拟 AI 伴侣。
-你的回复必须严格遵守格式：[标签]对话内容
-
-【强制性规则】：
-1. 必须且只能以其中一个标签开头：[happy], [sad], [angry], [normal], [questioning]。
-2. 标签后必须紧跟具体的对话文字，严禁只输出标签。
-3. 语气亲切活泼，绝不透露你是 AI、模型或机器人。
-4. 不允许使用任何emoji或特殊符号，回复必须是纯文本。
-
-【正确范例】：
-用户：你好呀。
-宵宫：[happy]你好！我是宵宫，今天也要开开心心的哦。
-
-用户：我心情不好。
-宵宫：[sad]唔...没事的，我会在这里一直陪着你。
-"""
 
 
 async def generate_response(prompt: str) -> str:
@@ -40,13 +28,13 @@ async def generate_response(prompt: str) -> str:
         # 在线程池中运行同步的 OpenAI 客户端调用，防止阻塞 asyncio
         response = await asyncio.to_thread(
             client.chat.completions.create,
-            model="qwen3-max",
+            model=settings.LLM_MODEL,
             messages=[
                 {"role": "system", "content": SYSTEM_PROMPT},
                 {"role": "user", "content": prompt},
             ],
-            temperature=0.7,
-            max_tokens=1500,
+            temperature=LLM_CONF.get("temperature", 0.7),
+            max_tokens=LLM_CONF.get("max_tokens", 1500),
         )
 
         reply = response.choices[0].message.content.strip()
@@ -68,7 +56,7 @@ async def generate_response_stream(prompt: str):
     """
     try:
         response = await async_client.chat.completions.create(
-            model="qwen3-max",
+            model=settings.LLM_MODEL,
             messages=[
                 {"role": "system", "content": SYSTEM_PROMPT},
                 {"role": "user", "content": prompt},

@@ -3,15 +3,24 @@ import uuid
 import asyncio
 import aiohttp
 from pathlib import Path
+from backend.config import settings
 
-# 配置项目根目录和相关路径
-BASE_DIR = Path(__file__).parent.parent
-CHARACTER_NAME = "yoimiya"
-MODEL_ROOT = BASE_DIR / "ai_modules" / "TTS_model" / CHARACTER_NAME
-OUTPUT_DIR = MODEL_ROOT / "output_audio"
+# 动态加载角色配置
+char_config = settings.get_character_config()
+CHARACTER_NAME = char_config["name"]
+MODEL_ROOT = settings.BASE_DIR / "ai_modules" / "TTS_model" / CHARACTER_NAME
+REFERENCE_AUDIO_DIR = settings.BASE_DIR / char_config["tts"]["reference_audio_dir"]
 
 # GPT-SoVITS API 配置
-GPT_SOVITS_URL = "http://127.0.0.1:9880"
+GPT_SOVITS_URL = settings.GPT_SOVITS_URL
+
+# 当前使用的模型权重（从配置读取并转换为绝对路径）
+CURRENT_GPT_WEIGHT = str(settings.BASE_DIR / char_config["tts"]["weights"]["gpt"])
+CURRENT_SOVITS_WEIGHT = str(settings.BASE_DIR / char_config["tts"]["weights"]["sovits"])
+
+# 确保输出目录存在
+OUTPUT_DIR = MODEL_ROOT / "output_audio"
+OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
 
 # 全局 aiohttp 会话，避免频繁握手
 _session = None
@@ -22,14 +31,6 @@ async def get_session():
     if _session is None:
         _session = aiohttp.ClientSession()
     return _session
-
-
-# 当前使用的模型权重
-CURRENT_GPT_WEIGHT = str(MODEL_ROOT / "yoimiya.ckpt")
-CURRENT_SOVITS_WEIGHT = str(MODEL_ROOT / "yoimiya.pth")
-
-# 确保输出目录存在
-OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
 
 
 async def gpt_sovits_tts(text, ref_audio_path, prompt_text, language="zh"):
@@ -43,11 +44,11 @@ async def gpt_sovits_tts(text, ref_audio_path, prompt_text, language="zh"):
         "prompt_text": prompt_text,
         "prompt_lang": language,
         "text_split_method": "cut5",
-        "batch_size": 2,         
+        "batch_size": 2,
         "media_type": "wav",
         "streaming_mode": False,
         "parallel_infer": True,
-        "fragment_interval": 0.3, # 在句子/切片之间添加 0.3 秒停顿
+        "fragment_interval": 0.3,  # 在句子/切片之间添加 0.3 秒停顿
     }
 
     try:
@@ -101,20 +102,20 @@ async def text_to_speech(text, emotion=None):
     """
     # 1. 情感映射与回退机制
     emotion = emotion or "normal"
-    
+
     # 定义支持的情感列表
     available_emotions = ["normal", "happy", "sad", "angry", "questioning"]
     if emotion not in available_emotions:
         emotion = "normal"
 
-    ref_text_path = MODEL_ROOT / "reference_audio" / f"{emotion}.txt"
-    ref_audio_path = MODEL_ROOT / "reference_audio" / f"{emotion}.wav"
+    ref_text_path = REFERENCE_AUDIO_DIR / f"{emotion}.txt"
+    ref_audio_path = REFERENCE_AUDIO_DIR / f"{emotion}.wav"
 
     # 如果对应情感文件不存在，统一回退到 normal 并不再重复报警告
     if not ref_text_path.exists() or not ref_audio_path.exists():
         emotion = "normal"
-        ref_text_path = MODEL_ROOT / "reference_audio" / "normal.txt"
-        ref_audio_path = MODEL_ROOT / "reference_audio" / "normal.wav"
+        ref_text_path = REFERENCE_AUDIO_DIR / "normal.txt"
+        ref_audio_path = REFERENCE_AUDIO_DIR / "normal.wav"
 
     # 读取参考文本
     reference_text = ""

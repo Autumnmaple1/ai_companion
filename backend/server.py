@@ -3,14 +3,17 @@ import os
 import time
 import re
 
+# 确保项目根目录在路径中
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
+from backend.config import settings
 import ai_modules
 import asyncio
 import json
 import base64
 import uvicorn
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
+from backend.core.processor import StreamProcessor
 
 # --- Mock 测试配置 ---
 USE_MOCK = False  # 改为 True 开启 Mock 模式，不走 LLM
@@ -95,52 +98,6 @@ def data_construct(
 manager = ConnectionManager()
 
 
-# 并发限制信号量（对于 V4 模型建议设为 1，优先保证首句合成速度）
-TTS_SEMAPHORE = asyncio.Semaphore(2)
-
-
-async def tts_worker(text, emotion, index, websocket, context):
-    """
-    合成生产者：负责调用 TTS，并将结果放入缓冲区
-    """
-    async with TTS_SEMAPHORE:
-        try:
-            start_time = time.time()
-            tts_audio = await ai_modules.TTS.text_to_speech(text, emotion)
-
-            if tts_audio:
-                duration = (time.time() - start_time) * 1000
-                print(f"[TTS完成] 第 {index} 单元 | 耗时 {duration:.2f}ms")
-                context["buffers"][index] = tts_audio
-                await flush_audio_queue(websocket, context)
-            else:
-                print(f"ERROR: [TTS失败] 第 {index} 单元合成返回空数据")
-        except Exception as e:
-            print(f"CRITICAL: [TTS异常] {e}")
-
-
-async def flush_audio_queue(websocket, context):
-    """
-    发送消费者：严格按 index 顺序发送已完成的音频
-    """
-    async with context["send_lock"]:
-        while context["next_index"] in context["buffers"]:
-            idx = context["next_index"]
-            audio_data = context["buffers"].pop(idx)
-
-            ai_audio_message = data_construct(
-                sender="ai",
-                type="voice",
-                format="audio",
-                time=str(time.time()),
-                content=audio_data,
-                index=idx,
-            )
-            await manager.send(ai_audio_message, websocket)
-            print(f"SUCCESS: [音频下发] Index {idx}")
-            context["next_index"] += 1
-
-
 @app.websocket("/ws/chat")
 async def websocket_endpoint(websocket: WebSocket):
     await manager.connect(websocket)
@@ -165,6 +122,7 @@ async def websocket_endpoint(websocket: WebSocket):
                     format="text",
                     time=str(time.time()),
                     content=text,
+                    id=int(time.time() * 1000) - 1,  # 确保与后续 AI 回复 ID 不同
                 )
                 await manager.send(user_message, websocket)
 
@@ -176,29 +134,14 @@ async def websocket_endpoint(websocket: WebSocket):
                 response_id = int(time.time() * 1000)
                 llm_start = time.time()
                 first_token_time = None
-                full_response = ""
-                sentence_buffer = ""
-                emotion_ref = [None]
-                emotion_found = False
 
-                # 核心：有序发送上下文
-                context = {"next_index": 0, "buffers": {}, "send_lock": asyncio.Lock()}
-                sentence_index = 0
-                tts_tasks = []
-
-                # --- 单元合并状态 ---
-                first_sent_sent = False
-                unit_text_buffer = []
-
-                # 断句符号优化
-                hard_terminators = ("。", "！", "？", "!", "?", "\n")
-                soft_terminators = ("，", ",", "；", ";")
+                # 初始化流式处理器
+                processor = StreamProcessor(websocket, manager, response_id)
 
                 # --- LLM 响应流获取 (Mock 或 Real) ---
                 if USE_MOCK:
 
                     async def mock_generator():
-                        # 模拟 LLM 逐字吐出的效果
                         for i in range(0, len(MOCK_RESPONSE), 4):
                             yield MOCK_RESPONSE[i : i + 4]
                             await asyncio.sleep(0.05)
@@ -214,116 +157,11 @@ async def websocket_endpoint(websocket: WebSocket):
                             f"[性能监控-LLM首字]: 耗时 {first_token_time:.2f}ms (打字机效果开始)"
                         )
 
-                    full_response += chunk
-                    sentence_buffer += chunk
                     print(chunk, end="", flush=True)
+                    await processor.process_chunk(chunk)
 
-                    # 1. 提取情感
-                    if not emotion_found and "]" in full_response:
-                        emotion_tag = re.search(r"\[(.*?)\]", full_response)
-                        if emotion_tag:
-                            emotion_ref[0] = emotion_tag.group(1)
-                            emotion_found = True
-                            sentence_buffer = re.sub(r"\[.*?\]", "", sentence_buffer)
-
-                    # 2. 检查逻辑：精准断句 (避免将下一句的开头带入当前句)
-                    term_in_chunk_idx = -1
-                    for i, char in enumerate(chunk):
-                        if char in hard_terminators:
-                            term_in_chunk_idx = i
-                            break
-                        if char in soft_terminators:
-                            # 计算到当前字符为止的缓冲区长度
-                            current_buf_len = len(sentence_buffer) - (len(chunk) - i)
-                            if not first_sent_sent and current_buf_len > 8:
-                                term_in_chunk_idx = i
-                                break
-                            if current_buf_len > 25:
-                                term_in_chunk_idx = i
-                                break
-
-                    if term_in_chunk_idx != -1:
-                        # 找到切分点 (包含标点符号)
-                        split_pos = (
-                            len(sentence_buffer) - (len(chunk) - term_in_chunk_idx) + 1
-                        )
-                        raw_sentence = sentence_buffer[:split_pos]
-                        sentence_buffer = sentence_buffer[
-                            split_pos:
-                        ]  # 剩余内容留给下一句
-
-                        clean_text = re.sub(r"\[.*?\]", "", raw_sentence).strip()
-                        if clean_text:
-                            # 文本消息
-                            msg = data_construct(
-                                sender="ai",
-                                type="message",
-                                format="text",
-                                time=str(time.time()),
-                                content=clean_text + " ",
-                                live2d_emotion=emotion_ref[0],
-                                id=response_id,
-                                mode="append",
-                            )
-                            await manager.send(msg, websocket)
-
-                            # TTS 调度
-                            current_emo = emotion_ref[0] or "normal"
-                            unit_text_buffer.append(clean_text)
-
-                            # 合并策略：固定每 2 句合成一次
-                            if len(unit_text_buffer) >= 2:
-                                combo = " ".join(unit_text_buffer)
-                                tts_tasks.append(
-                                    asyncio.create_task(
-                                        tts_worker(
-                                            combo,
-                                            current_emo,
-                                            sentence_index,
-                                            websocket,
-                                            context,
-                                        )
-                                    )
-                                )
-                                sentence_index += 1
-                                unit_text_buffer = []
-                                first_sent_sent = True
-                    # 结束当前 chunk 处理
-                # 结束 LLM stream
-
-                # 3. 收尾逻辑
-                final_rem = re.sub(r"\[.*?\]", "", sentence_buffer).strip()
-                if final_rem:
-                    unit_text_buffer.append(final_rem)
-                    # 发送最后一段文本
-                    final_msg = data_construct(
-                        sender="ai",
-                        type="message",
-                        format="text",
-                        time=str(time.time()),
-                        content=final_rem,
-                        live2d_emotion=emotion_ref[0],
-                        id=response_id,
-                        mode="append",
-                    )
-                    await manager.send(final_msg, websocket)
-
-                if unit_text_buffer:
-                    combined = " ".join(unit_text_buffer)
-                    tts_tasks.append(
-                        asyncio.create_task(
-                            tts_worker(
-                                combined,
-                                emotion_ref[0] or "normal",
-                                sentence_index,
-                                websocket,
-                                context,
-                            )
-                        )
-                    )
-
-                if tts_tasks:
-                    await asyncio.gather(*tts_tasks, return_exceptions=True)
+                # 结束处理
+                await processor.finalize()
 
                 llm_total_duration = (time.time() - llm_start) * 1000
                 print(f"\n[性能监控-LLM结束]: 总生成时间 {llm_total_duration:.2f}ms")
@@ -345,4 +183,6 @@ async def websocket_endpoint(websocket: WebSocket):
 
 
 if __name__ == "__main__":
-    uvicorn.run("server:app", host="localhost", port=8000, reload=True)
+    host = settings.SERVER_HOST
+    port = settings.SERVER_PORT
+    uvicorn.run("server:app", host=host, port=port, reload=True)

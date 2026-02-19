@@ -4,7 +4,7 @@ import Live2DViewer from './Live2DViewer';
 
 function App() {
   const [messages, setMessages] = useState([]);
-  const [currentEmotion, setCurrentEmotion] = useState("Normal");
+  const [currentEmotion, setCurrentEmotion] = useState("normal");
   const ws = useRef(null);
   const [showLogs, setShowLogs] = useState(false);
   const [inputValue, setInputValue] = useState("");
@@ -20,21 +20,45 @@ function App() {
   const playNextAudio = () => {
     if (isPlaying.current) return;
 
-    const audioData = audioQueue.current[nextPlayIndex.current];
-    if (audioData) {
+    const audioObj = audioQueue.current[nextPlayIndex.current];
+    if (audioObj) {
       isPlaying.current = true;
       delete audioQueue.current[nextPlayIndex.current]; // 取出后删除
-      
-      const audio = new Audio(`data:audio/wav;base64,${audioData}`);
+
+      // 【音画同步】在播放开始前同步显示文本和表情
+      if (audioObj.text) {
+        const messageId = audioObj.id || Date.now();
+        setMessages(prev => {
+          const existingIndex = prev.findIndex(m => m.id === messageId && m.role === 'ai');
+          if (existingIndex !== -1) {
+            const newMessages = [...prev];
+            newMessages[existingIndex] = {
+              ...newMessages[existingIndex],
+              content: newMessages[existingIndex].content + audioObj.text + " "
+            };
+            return newMessages;
+          } else {
+            return [...prev, { role: 'ai', content: audioObj.text + " ", id: messageId }];
+          }
+        });
+      }
+
+      if (audioObj.live2d_emotion) {
+        // 直接使用小写的标签，匹配 LSS.model3.json 中的 Name 段
+        const emotion = audioObj.live2d_emotion.toLowerCase();
+        setCurrentEmotion(emotion);
+      }
+
+      const audio = new Audio(`data:audio/wav;base64,${audioObj.content}`);
       setCurrentAudio(audio);
-      
+
       audio.onended = () => {
         isPlaying.current = false;
         setCurrentAudio(null);
         nextPlayIndex.current += 1; // 播放下一号
         playNextAudio();
       };
-      
+
       audio.play().catch(err => {
         console.error("播放音频失败:", err);
         isPlaying.current = false;
@@ -59,8 +83,8 @@ function App() {
       if (data.type === 'message') {
         const messageId = data.id || Date.now();
         setMessages(prev => {
-          // 检查是否已有该 ID 的消息，如果有则追加内容
-          const existingIndex = prev.findIndex(m => m.id === messageId);
+          // 检查是否已有该 ID 且 角色相同 的消息，如果有则追加内容
+          const existingIndex = prev.findIndex(m => m.id === messageId && m.role === data.sender);
           if (existingIndex !== -1) {
             const newMessages = [...prev];
             newMessages[existingIndex] = {
@@ -74,13 +98,13 @@ function App() {
         });
 
         if (data.live2d_emotion) {
-          const emotion = data.live2d_emotion.charAt(0).toUpperCase() + data.live2d_emotion.slice(1).toLowerCase();
+          const emotion = data.live2d_emotion.toLowerCase();
           setCurrentEmotion(emotion);
         }
       }
       else if (data.type === 'voice') {
-        // 按编号存入缓冲区
-        audioQueue.current[data.index] = data.content;
+        // 按编号存入缓冲区，存储完整对象以同步文本
+        audioQueue.current[data.index] = data;
         playNextAudio();
       }
     };
@@ -105,13 +129,15 @@ function App() {
 
     if (!inputValue.trim()) return;
     if (ws.current && ws.current.readyState === WebSocket.OPEN) {
+      const messageId = Date.now();
       ws.current.send(JSON.stringify({
         sender: "user",
         format: "text",
         content: inputValue,
-        time: new Date().toISOString()
+        time: new Date().toISOString(),
+        id: messageId
       }));
-      setMessages(prev => [...prev, { role: "user", content: inputValue }]);
+      setMessages(prev => [...prev, { role: "user", content: inputValue, id: messageId }]);
       setInputValue("");
     }
   };
