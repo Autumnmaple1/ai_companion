@@ -5,6 +5,25 @@
   padding: 0;
 }
 
+/* 全局滚动条美化 */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: rgba(0, 0, 0, 0.1);
+  border-radius: 10px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(0, 0, 0, 0.2);
+}
+
 .app-container {
   display: flex;
   height: 100vh;
@@ -14,25 +33,65 @@
   background-size: cover;
   background-position: center;
   background-repeat: no-repeat;
-  font-family: 'PingFang SC',
-    sans-serif;
+  font-family: 'PingFang SC', sans-serif;
+  overflow: hidden;
 }
 
 .sidebar {
-  width: 20%;
-  margin: 6px;
-  height: calc(100vh - 12px);
-  border-radius: 25px;
-  background: rgba(255, 255, 255, 0.75);
+  width: 0;
+  opacity: 0;
+  margin: 0;
+  padding: 0;
+  height: calc(100vh - 8px);
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.25);
+  /* 极端透明化 */
   -webkit-backdrop-filter: blur(5px);
+  /* 减弱模糊 */
   backdrop-filter: blur(5px);
-  border: 1px solid rgba(255, 255, 255, 0.3);
-  box-shadow: 0 8px 32px 0 rgba(31, 38, 135, 0.1);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  box-shadow: 0 4px 20px 0 rgba(0, 0, 0, 0.05);
   display: flex;
   flex-direction: column;
+  z-index: 100;
+  overflow: visible;
+  /* 改为 visible，让拖拽手柄显示 */
+  transition: all 0.5s cubic-bezier(0.19, 1, 0.22, 1);
+  pointer-events: none;
+  position: relative;
+  /* 为手柄定位 */
+}
+
+.sidebar.resizing {
+  transition: none !important;
+  /* 拖动过程中禁用过渡，消除延迟感 */
+}
+
+.sidebar.open {
+  /* width 由 App.jsx 内联样式控制 */
+  opacity: 1;
+  margin: 4px;
   padding: 10px;
-  z-index: 2;
-  /* 确保侧边栏在 Live2D 之上 */
+  pointer-events: auto;
+}
+
+.resize-handle {
+  position: absolute;
+  top: 0;
+  right: -5px;
+  /* 这里放在侧边栏的最右侧边缘 */
+  width: 10px;
+  height: 100%;
+  cursor: col-resize;
+  z-index: 1000;
+  background: transparent;
+  transition: background 0.2s;
+}
+
+.resize-handle:hover,
+.sidebar.resizing .resize-handle {
+  background: rgba(24, 144, 255, 0.2);
+  /* 悬浮或拖拽时显示一道浅蓝细线 */
 }
 
 .sidebar-header {
@@ -42,7 +101,9 @@
   align-items: center;
   margin-bottom: 15px;
   padding-bottom: 10px;
-  border-bottom: 1px solid #f0f0f0;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.05);
+  min-width: 250px;
+  /* 调小最小宽度的限制 */
 }
 
 .sidebar-header .icon-btn {
@@ -62,13 +123,15 @@
   overflow-y: auto;
   display: flex;
   flex-direction: column;
-  gap: 10px;
-  direction: rtl;
-  padding-left: 5px;
+  gap: 4px;
+  padding: 8px 5px;
+  scrollbar-gutter: stable;
+  /* 预留滚动条空间，防止布局抖动 */
 }
 
+/* 隐藏原有丑陋的默认滚动条 */
 .message-list::-webkit-scrollbar {
-  width: 6px;
+  width: 4px;
 }
 
 .message-list::-webkit-scrollbar-track {
@@ -76,42 +139,215 @@
 }
 
 .message-list::-webkit-scrollbar-thumb {
-  background: rgba(255, 255, 255, 0.3);
-  border-radius: 3px;
+  background: rgba(0, 0, 0, 0.1);
+  border-radius: 10px;
 }
 
-.message-list::-webkit-scrollbar-thumb:hover {
-  background: rgba(255, 255, 255, 0.5);
+.message-row {
+  display: flex;
+  width: 100%;
+  direction: ltr;
+  /* 恢复正常文字方向 */
+  gap: 8px;
+  align-items: flex-start;
+  /* 改为顶部对齐，方便时间戳排布 */
 }
 
+.message-wrapper {
+  display: flex;
+  flex-direction: column;
+  max-width: 80%;
+  /* 外部容器保持 80% */
+  flex: 0 1 auto;
+}
 
+.message-row.user .message-wrapper {
+  max-width: 75%;
+  /* 用户发送的窄一点，增加右边空白 */
+  align-items: flex-end;
+}
+
+.message-row.ai .message-wrapper {
+  max-width: 70%;
+  /* AI 发送的进一步收窄，留出整整 30% 空间 */
+  align-items: flex-start;
+}
+
+.message-time-top {
+  font-size: 10px;
+  color: rgba(255, 255, 255, 0.8);
+  /* 偏白颜色 */
+  margin-bottom: 2px;
+  letter-spacing: 0.5px;
+  font-family: 'Helvetica', sans-serif;
+  padding: 0 4px;
+}
+
+/* 日期分割线 */
+.date-separator {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin: 15px 0;
+  width: 100%;
+}
+
+.date-separator span {
+  background: rgba(0, 0, 0, 0.1);
+  /* 极淡的灰黑色背景 */
+  color: rgba(255, 255, 255, 0.7);
+  padding: 2px 12px;
+  border-radius: 12px;
+  font-size: 11px;
+  font-weight: 500;
+  backdrop-filter: blur(2px);
+}
+
+.message-row.user .message-time-top {
+  align-self: flex-end;
+}
+
+.message-row.ai .message-time-top {
+  align-self: flex-start;
+}
+
+.message-row.user {
+  justify-content: flex-end;
+}
+
+.message-row.ai {
+  justify-content: flex-start;
+}
+
+.message-row.first-in-group {
+  margin-top: 15px;
+  /* 不同人说话，间距大一点 */
+}
+
+.message-row.first-in-group:first-child {
+  margin-top: 0;
+}
+
+.message-row.consecutive {
+  margin-top: 2px;
+  /* 同一个人连续说话，间距紧凑 */
+}
+
+.message-row.consecutive .avatar {
+  background: transparent;
+  box-shadow: none;
+  visibility: hidden;
+}
+
+.avatar {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: bold;
+  font-size: 14px;
+  flex-shrink: 0;
+  box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+}
+
+.avatar.ai {
+  background: #1890ff;
+  color: white;
+}
+
+.avatar.user {
+  background: #69ec85;
+  color: #0d3b14;
+}
+
+/* 对话消息气泡美化 */
 .message-item {
   direction: ltr;
-  padding: 8px 12px;
-  border-radius: 8px;
-  font-size: 14px;
-  line-height: 1.4;
+  padding: 10px 16px;
+  /* 增加左右内边距，让文字更有“被包裹”感 */
+  border-radius: 12px;
+  font-size: 14.5px;
+  line-height: 1.6;
+  /* 稍微提升行高，长文本更易读 */
+  width: fit-content;
   max-width: 100%;
   word-wrap: break-word;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
+  /* 稍微加深投影增加立体感 */
+  position: relative;
+  transition: transform 0.2s ease;
+  display: flex;
+  flex-direction: column;
 }
 
+.message-item:hover {
+  transform: scale(1.01);
+}
+
+/* 用户气泡 - 位于右侧 */
 .message-item.user {
-  background-color: #69ec85;
-  align-self: flex-start;
-  margin-left: 20px;
+  background: linear-gradient(135deg, #69ec85 0%, #4ae06b 100%);
+  color: #0d3b14;
 }
 
+.message-row.user.first-in-group .message-item {
+  border-top-right-radius: 4px;
+  /* 尖端移到靠近头像的上方 */
+}
+
+/* AI 气泡 - 位于左侧 */
 .message-item.ai {
-  background-color: #f1f1f1;
-  align-self: flex-end;
-  margin-right: 20px;
+  background-color: #ffffff;
+  color: #333;
+  border: 1px solid rgba(0, 0, 0, 0.03);
 }
 
+.message-row.ai.first-in-group .message-item {
+  border-top-left-radius: 4px;
+  /* 尖端移到靠近头像的上方 */
+}
+
+/* 系统消息 - 居中或提示 */
 .message-item.system {
-  background-color: #fff0f6;
-  border: 1px dashed #ffadd2;
-  align-self: flex-end;
+  background-color: rgba(255, 255, 255, 0.4);
+  border: 1px dashed rgba(0, 0, 0, 0.1);
+  color: #666;
+  align-self: center;
+  width: auto;
+  font-size: 12px;
+  border-radius: 10px;
+  margin: 5px 0;
+}
+
+/* 分页提示样式 */
+.loading-history,
+.no-more {
+  text-align: center;
+  font-size: 12px;
+  color: #999;
+  padding: 10px 0;
   width: 100%;
+  direction: ltr;
+}
+
+.loading-history {
+  animation: fadeInOut 1.5s infinite;
+}
+
+@keyframes fadeInOut {
+  0% {
+    opacity: 0.5;
+  }
+
+  50% {
+    opacity: 1;
+  }
+
+  100% {
+    opacity: 0.5;
+  }
 }
 
 
@@ -119,34 +355,93 @@
   flex: 1;
   position: relative;
   background: transparent;
-
   display: flex;
   justify-content: center;
   align-items: center;
   color: white;
   z-index: 2;
-  /* 确保主交互区域在 Live2D 之上 */
   pointer-events: none;
-  /* 让点击事件穿透 main-area 容器本身 */
+  transition: all 0.5s cubic-bezier(0.19, 1, 0.22, 1);
 }
 
 .input-area {
   position: absolute;
-  bottom: 20px;
-  left: 5%;
+  bottom: 15px;
+  left: 50%;
+  transform: translateX(-50%);
   width: 90%;
-  background: rgba(255, 255, 255, 0.65);
+  max-width: 1000px;
+  background: rgba(255, 255, 255, 0.25);
+  /* 与侧边栏一致的极致透明 */
   -webkit-backdrop-filter: blur(5px);
+  /* 同样的模糊强度 */
   backdrop-filter: blur(5px);
-  border: 1px solid rgba(255, 255, 255, 0.4);
-  padding: 10px;
-  border-radius: 30px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  padding: 8px 12px;
+  border-radius: 15px;
   display: flex;
-  gap: 10px;
-  box-shadow: 0 8px 32px 0 rgba(31, 38, 135, 0.2);
+  gap: 12px;
+  box-shadow: 0 4px 20px 0 rgba(0, 0, 0, 0.05);
   z-index: 10000;
   pointer-events: auto;
-  /* 恢复输入区的点击交互 */
+  transition: all 0.5s cubic-bezier(0.19, 1, 0.22, 1);
+}
+
+.toggle-sidebar-btn,
+.action-btn {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  background: rgba(24, 144, 255, 0.12);
+  border: 1px solid rgba(24, 144, 255, 0.2);
+  color: #1890ff;
+  padding: 6px 14px;
+  border-radius: 12px;
+  cursor: pointer;
+  transition: all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+  white-space: nowrap;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+}
+
+.toggle-sidebar-btn:hover,
+.action-btn:hover {
+  background: rgba(24, 144, 255, 0.22);
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(24, 144, 255, 0.25);
+}
+
+.toggle-sidebar-btn.active,
+.action-btn.primary {
+  background: #1890ff;
+  color: white;
+  border-color: #1890ff;
+  box-shadow: 0 4px 12px rgba(24, 144, 255, 0.3);
+}
+
+.action-btn.recording.active {
+  background: #ff4d4f;
+  border-color: #ff4d4f;
+  color: white;
+  animation: pulse 1.5s infinite;
+}
+
+@keyframes pulse {
+  0% {
+    box-shadow: 0 0 0 0 rgba(255, 77, 79, 0.4);
+  }
+
+  70% {
+    box-shadow: 0 0 0 10px rgba(255, 77, 79, 0);
+  }
+
+  100% {
+    box-shadow: 0 0 0 0 rgba(255, 77, 79, 0);
+  }
+}
+
+.btn-label {
+  font-size: 13px;
+  font-weight: 500;
 }
 
 #live2d-canvas {
@@ -187,7 +482,11 @@ input {
   outline: none;
   font-size: 16px;
   padding-left: 10px;
-  color: #333;
+  color: rgba(255, 255, 255, 0.9);
+}
+
+input::placeholder {
+  color: rgba(255, 255, 255, 0.5);
 }
 
 button {
@@ -214,15 +513,18 @@ button:hover {
   display: flex;
   align-items: center;
   justify-content: center;
-  transition: all 0.3s ease;
-  color: #666;
-  /* 图标默认颜色 */
+  transition: all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+  /* 使用弹性过渡 */
+  color: rgba(255, 255, 255, 0.8);
+  /* 调高图标亮度 */
 }
 
 .icon-btn:hover {
-  background-color: #f0f0f0;
-  /* 鼠标悬停微微变灰 */
-  color: #333;
+  background-color: rgba(255, 255, 255, 0.4);
+  /* 玻璃感的悬停效果 */
+  color: #1890ff;
+  transform: scale(1.05);
+  /* 微缩放增加交互感 */
 }
 
 .icon-btn.recording {
@@ -248,17 +550,5 @@ button:hover {
 }
 
 .send-btn {
-  padding: 8px 20px;
-  border-radius: 20px;
-  border: none;
-  background-color: #1890ff;
-  color: white;
-  cursor: pointer;
-  font-weight: bold;
-  font-size: 14px;
-  transition: background 0.3s;
-}
-
-.send-btn:hover {
-  background-color: #40a9ff;
+  /* 统一合并 */
 }

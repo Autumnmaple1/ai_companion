@@ -15,6 +15,7 @@ import json
 import base64
 import uvicorn
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
+from fastapi.middleware.cors import CORSMiddleware
 from backend.core.processor import StreamProcessor
 from backend.core.utils import data_construct
 
@@ -49,6 +50,15 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(lifespan=lifespan)
 
+# 添加 CORS 中间件，允许前端跨域访问
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],  # 在生产环境中建议修改为具体的域名
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
 
 @app.get("/config")
 async def get_config():
@@ -62,6 +72,18 @@ async def get_config():
                 "live2d", {"model_path": "/models/LSS/LSS.model3.json"}
             ),
         }
+    except Exception as e:
+        return {"error": str(e)}
+
+
+@app.get("/history")
+async def get_history(limit: int = 20, before: int = None):
+    """获取指定角色的历史对话列表，支持分页显示早前信息"""
+    try:
+        db = app.state.db
+        agent_id = settings.CHARACTER_NAME
+        messages = await db.get_history(agent_id, limit=limit, before_timestamp=before)
+        return messages
     except Exception as e:
         return {"error": str(e)}
 
@@ -106,7 +128,7 @@ async def websocket_endpoint(websocket: WebSocket):
                 print(f"\n[用户输入文本]: {text}")
                 # 存储用户消息（不发回前端，因为前端已显示）
                 user_msg_id = int(time.time() * 1000)
-                await db.save_message(agent_id, user_msg_id, "user", time.time(), text)
+                await db.save_message(agent_id, user_msg_id, "user", user_msg_id, text)
 
             elif message_type == "audio":
                 audio_data = content
@@ -121,12 +143,12 @@ async def websocket_endpoint(websocket: WebSocket):
                     sender="user",
                     type="message",
                     format="text",
-                    time=str(time.time()),
+                    time=str(user_msg_id),
                     content=text,
                     id=user_msg_id,
                 )
                 await manager.send(user_message, websocket)
-                await db.save_message(agent_id, user_msg_id, "user", time.time(), text)
+                await db.save_message(agent_id, user_msg_id, "user", user_msg_id, text)
 
             if not text or not text.strip():
                 continue

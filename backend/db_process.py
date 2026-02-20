@@ -16,7 +16,7 @@ class Database:
         db_dir = os.path.dirname(self.db_path)
         if db_dir and not os.path.exists(db_dir):
             os.makedirs(db_dir, exist_ok=True)
-            
+
         self.connection = await aiosqlite.connect(self.db_path)
         await self._initialize_system_tables()
 
@@ -40,13 +40,13 @@ class Database:
             row = await cursor.fetchone()
             if row:
                 return row[0]
-        
+
         # 插入新 agent 并获取自增 ID
         await self.connection.execute(
             "INSERT INTO agent_list (agent_id) VALUES (?)", (agent_id,)
         )
         await self.connection.commit()
-        
+
         async with self.connection.execute("SELECT last_insert_rowid()") as cursor:
             row = await cursor.fetchone()
             return row[0]
@@ -55,7 +55,7 @@ class Database:
         """确保对应 agent 映射的索引表存在"""
         agent_index = await self._get_or_create_agent_index(agent_id)
         table_name = f"chats_{agent_index}"
-        
+
         # 每一条消息存一行，存储发送者、时间、内容、情感等
         await self.connection.execute(
             f"""
@@ -72,7 +72,9 @@ class Database:
         await self.connection.commit()
         return table_name
 
-    async def save_message(self, agent_id, message_id, sender, timestamp, content, emotion="normal"):
+    async def save_message(
+        self, agent_id, message_id, sender, timestamp, content, emotion="normal"
+    ):
         """保存单条消息到 agent 对应的索引表"""
         table_name = await self._ensure_agent_chat_table(agent_id)
         await self.connection.execute(
@@ -84,24 +86,38 @@ class Database:
         )
         await self.connection.commit()
 
-    async def get_history(self, agent_id, limit=50):
-        """获取指定 agent 的历史消息列表"""
+    async def get_history(self, agent_id, limit=20, before_timestamp=None):
+        """获取指定 agent 的历史消息列表，支持分页"""
         table_name = await self._ensure_agent_chat_table(agent_id)
-        cursor = await self.connection.execute(
-            f"SELECT message_id, sender, timestamp, content, emotion FROM {table_name} ORDER BY timestamp DESC LIMIT ?",
-            (limit,),
+
+        query = (
+            f"SELECT message_id, sender, timestamp, content, emotion FROM {table_name}"
         )
+        params = []
+
+        if before_timestamp:
+            query += " WHERE timestamp < ?"
+            params.append(int(before_timestamp))
+
+        query += " ORDER BY timestamp DESC LIMIT ?"
+        params.append(limit)
+
+        cursor = await self.connection.execute(query, tuple(params))
         rows = await cursor.fetchall()
+
         messages = []
         for row in rows:
-            messages.append({
-                "message_id": row[0],
-                "sender": row[1],
-                "timestamp": row[2],
-                "content": row[3],
-                "emotion": row[4]
-            })
-        return messages[::-1] # 按时间顺序返回
+            messages.append(
+                {
+                    "id": row[0],  # 使用 message_id 作为 id
+                    "role": row[1],
+                    "timestamp": row[2],
+                    "content": row[3],
+                    "emotion": row[4],
+                }
+            )
+        # 结果需要按时间升序返回给前端，以便顺着排列出来
+        return sorted(messages, key=lambda x: x["timestamp"])
 
     async def close(self):
         if self.connection:
