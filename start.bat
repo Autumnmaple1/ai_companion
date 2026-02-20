@@ -3,7 +3,24 @@ echo ==========================================
 echo 正在启动所有服务...
 echo ==========================================
 
-:: 2. 启动 Backend Server
+:: 1. 检查 Node.js 环境
+echo [0/2] 正在检查开发环境...
+node -v >nul 2>&1
+if %errorlevel% neq 0 (
+    echo [ERROR] 未找到 Node.js，请先安装 Node.js！
+    pause
+    exit /b
+)
+
+:: 2. 检查 Python Conda 环境
+call conda --version >nul 2>&1
+if %errorlevel% neq 0 (
+    echo [ERROR] 未找到 Conda，请确保已安装并添加到环境变量！
+    pause
+    exit /b
+)
+
+:: 3. 启动 Backend Server
 echo [1/2] 正在启动 Backend Server...
 start "Backend Server" cmd /k "call conda activate test_ai && python backend\server.py"
 
