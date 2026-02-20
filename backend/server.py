@@ -6,6 +6,7 @@ import re
 # 确保项目根目录在路径中
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
+from contextlib import asynccontextmanager
 from backend.config import settings
 import ai_modules
 import asyncio
@@ -20,12 +21,10 @@ USE_MOCK = False  # 改为 True 开启 Mock 模式，不走 LLM
 MOCK_RESPONSE = "[happy]你好！这是一段用于测试的固定文字。看到这段话说明墨客模式已开启，语音合成正在工作。"
 # --------------------
 
-app = FastAPI()
 
-
-@app.on_event("startup")
-async def startup_event():
-    """服务器启动时加载角色权重"""
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """应用生命周期管理器，负责在启动时加载角色权重"""
     try:
         from ai_modules.TTS import (
             CHARACTER_NAME,
@@ -43,6 +42,10 @@ async def startup_event():
             print(f"WARNING: [模型加载异常] 无法读取模型权重，请检查路径。")
     except Exception as e:
         print(f"WARNING: [初始化跳过] {e}")
+    yield
+
+
+app = FastAPI(lifespan=lifespan)
 
 
 class ConnectionManager:
@@ -145,8 +148,10 @@ async def websocket_endpoint(websocket: WebSocket):
                     full_text = await ai_modules.LLM.generate_response(text)
 
                 llm_duration = (time.time() - llm_start) * 1000
-                print(f"[性能监控-LLM]: 耗时 {llm_duration:.2f}ms | 全文: {full_text[:50]}...")
-                
+                print(
+                    f"[性能监控-LLM]: 耗时 {llm_duration:.2f}ms | 全文: {full_text[:50]}..."
+                )
+
                 # 这里的打印是为了给控制台看完整回复
                 print(f"AI回复全文: {full_text}")
 
