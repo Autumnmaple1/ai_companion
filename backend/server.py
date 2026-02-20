@@ -8,6 +8,7 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from contextlib import asynccontextmanager
 from backend.config import settings
+from backend.db_process import Database
 import ai_modules
 import asyncio
 import json
@@ -15,16 +16,17 @@ import base64
 import uvicorn
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from backend.core.processor import StreamProcessor
-
-# --- Mock 测试配置 ---
-USE_MOCK = False  # 改为 True 开启 Mock 模式，不走 LLM
-MOCK_RESPONSE = "[happy]你好！这是一段用于测试的固定文字。看到这段话说明墨客模式已开启，语音合成正在工作。"
-# --------------------
+from backend.core.utils import data_construct
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    """应用生命周期管理器，负责在启动时加载角色权重"""
+    """应用生命周期管理器，负责在启动时加载角色权重和初始化数据库"""
+    # 初始化数据库
+    db_path = settings.DATABASE_DIR / "conversations.db"
+    app.state.db = Database(db_path)
+    await app.state.db.connect()
+
     try:
         from ai_modules.TTS import (
             CHARACTER_NAME,
@@ -48,6 +50,22 @@ async def lifespan(app: FastAPI):
 app = FastAPI(lifespan=lifespan)
 
 
+@app.get("/config")
+async def get_config():
+    """获取当前加载的角色基本配置，用于前端动态切换"""
+    try:
+        config = settings.get_character_config()
+        return {
+            "character_name": config["name"],
+            "display_name": config.get("display_name", config["name"]),
+            "live2d": config.get(
+                "live2d", {"model_path": "/models/LSS/LSS.model3.json"}
+            ),
+        }
+    except Exception as e:
+        return {"error": str(e)}
+
+
 class ConnectionManager:
     def __init__(self):
         self.active_connections: list[WebSocket] = []
@@ -67,43 +85,16 @@ class ConnectionManager:
         await websocket.send_text(json.dumps(content))
 
 
-def data_construct(
-    sender: str,
-    type: str,
-    format: str,
-    time: str,
-    content,
-    live2d_emotion=None,
-    id=None,
-    mode=None,
-    index=None,
-) -> dict:
-    if isinstance(content, bytes):
-        content = base64.b64encode(content).decode("utf-8")
-    res = {
-        "sender": sender,
-        "type": type,
-        "format": format,
-        "time": time,
-        "content": content,
-    }
-    if live2d_emotion is not None:
-        res["live2d_emotion"] = live2d_emotion
-    if id is not None:
-        res["id"] = id
-    if mode is not None:
-        res["mode"] = mode
-    if index is not None:
-        res["index"] = index
-    return res
-
-
 manager = ConnectionManager()
 
 
 @app.websocket("/ws/chat")
 async def websocket_endpoint(websocket: WebSocket):
     await manager.connect(websocket)
+    db = websocket.app.state.db
+    # 获取当前角色名作为 agent_id
+    agent_id = settings.CHARACTER_NAME
+
     try:
         while True:
             message = await manager.receive(websocket)
@@ -113,21 +104,29 @@ async def websocket_endpoint(websocket: WebSocket):
             if message_type == "text":
                 text = content
                 print(f"\n[用户输入文本]: {text}")
+                # 存储用户消息（不发回前端，因为前端已显示）
+                user_msg_id = int(time.time() * 1000)
+                await db.save_message(agent_id, user_msg_id, "user", time.time(), text)
+
             elif message_type == "audio":
                 audio_data = content
                 asr_start = time.time()
                 text = await ai_modules.ASR.speech_to_text(audio_data)
                 asr_duration = (time.time() - asr_start) * 1000
                 print(f"\n[性能监控-ASR]: 耗时 {asr_duration:.2f}ms | 识别结果: {text}")
+
+                # 语音识别出的文本需要发回给前端显示，并存储
+                user_msg_id = int(time.time() * 1000)
                 user_message = data_construct(
                     sender="user",
                     type="message",
                     format="text",
                     time=str(time.time()),
                     content=text,
-                    id=int(time.time() * 1000) - 1,  # 确保与后续 AI 回复 ID 不同
+                    id=user_msg_id,
                 )
                 await manager.send(user_message, websocket)
+                await db.save_message(agent_id, user_msg_id, "user", time.time(), text)
 
             if not text or not text.strip():
                 continue
@@ -138,14 +137,13 @@ async def websocket_endpoint(websocket: WebSocket):
                 llm_start = time.time()
 
                 # 初始化处理器 (架构调整：一次性接收)
-                processor = StreamProcessor(websocket, manager, response_id)
+                processor = StreamProcessor(
+                    websocket, manager, response_id, db, agent_id
+                )
 
-                # --- LLM 响应获取 (Mock 或 Real) ---
-                if USE_MOCK:
-                    full_text = MOCK_RESPONSE
-                else:
-                    # 改为一次性生成，不走 stream
-                    full_text = await ai_modules.LLM.generate_response(text)
+                # --- LLM 响应获取 ---
+                # 一次性生成，不走 stream
+                full_text = await ai_modules.LLM.generate_response(text)
 
                 llm_duration = (time.time() - llm_start) * 1000
                 print(

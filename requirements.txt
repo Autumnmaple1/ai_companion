@@ -26,3 +26,6 @@ python-dotenv
 pydantic
 pydantic-settings
 loguru
+
+# 数据管理与储存
+aiosqlite

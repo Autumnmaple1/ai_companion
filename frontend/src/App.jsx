@@ -5,6 +5,7 @@ import Live2DViewer from './Live2DViewer';
 function App() {
   const [messages, setMessages] = useState([]);
   const [currentEmotion, setCurrentEmotion] = useState("normal");
+  const [config, setConfig] = useState(null);
   const ws = useRef(null);
   const [showLogs, setShowLogs] = useState(false);
   const [inputValue, setInputValue] = useState("");
@@ -15,6 +16,21 @@ function App() {
   const audioQueue = useRef({}); // 改为对象以存储 index -> data
   const nextPlayIndex = useRef(0);
   const isPlaying = useRef(false);
+
+  // 获取后端角色配置
+  useEffect(() => {
+    fetch("http://localhost:8000/config")
+      .then(res => res.json())
+      .then(data => {
+        if (data.error) {
+          console.error("加载配置失败:", data.error);
+        } else {
+          console.log("已加载角色配置:", data);
+          setConfig(data);
+        }
+      })
+      .catch(err => console.error("获取后端配置异常:", err));
+  }, []);
 
   // 播放音频队列
   const playNextAudio = () => {
@@ -201,7 +217,11 @@ function App() {
 
   return (
     <div className="app-container">
-      <Live2DViewer currentEmotion={currentEmotion} audio={currentAudio} />
+      <Live2DViewer
+        currentEmotion={currentEmotion}
+        audio={currentAudio}
+        modelPath={config?.live2d?.model_path}
+      />
       <div className="sidebar">
         <div className="sidebar-header">
           <div className="sidebar-title">
@@ -240,7 +260,7 @@ function App() {
         <div className="input-area">
           <input
             type="text"
-            placeholder="和我说点什么吧..."
+            placeholder={config ? `和${config.display_name}聊会儿吧...` : "和我说点什么吧..."}
             value={inputValue}
             onChange={(e) => setInputValue(e.target.value)}
             onKeyDown={handleKeyPress}

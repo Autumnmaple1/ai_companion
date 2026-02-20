@@ -16,10 +16,10 @@ class Settings:
 
     CHARACTERS_DIR = PROJECT_ROOT / "backend" / "characters"
     AI_MODULES_DIR = PROJECT_ROOT / "ai_modules"
+    DATABASE_DIR = PROJECT_ROOT / "backend" / "database"
 
     # 服务器配置
     LETTA_URL = os.getenv("LETTA_URL", "http://localhost:8283")
-    LETTA_AGENT_ID = os.getenv("LETTA_AGENT_ID", "")
     SERVER_HOST = os.getenv("SERVER_HOST", "127.0.0.1")
     SERVER_PORT = int(os.getenv("SERVER_PORT", 8000))
 
@@ -37,10 +37,14 @@ class Settings:
     # TTS 配置
     GPT_SOVITS_URL = os.getenv("GPT_SOVITS_URL", "http://127.0.0.1:9880")
 
+    @property
+    def CHARACTER_NAME(self) -> str:
+        return os.getenv("CHARACTER_NAME", "yoimiya")
+
     def get_character_config(self, name: str = None) -> dict:
         import json
 
-        char_name = name or os.getenv("CHARACTER_NAME", "yoimiya")
+        char_name = name or self.CHARACTER_NAME
         config_path = self.CHARACTERS_DIR / f"{char_name}.json"
         if not config_path.exists():
             raise FileNotFoundError(f"Character config not found: {config_path}")

@@ -7,7 +7,7 @@ import { LIVE2D_CONFIG } from './live2dConfig';
 window.PIXI = PIXI;
 Live2DModel.registerTicker(PIXI.Ticker);
 
-const Live2DViewer = ({ currentEmotion, audio }) => {
+const Live2DViewer = ({ currentEmotion, audio, modelPath }) => {
     const canvasRef = useRef(null);
     const appRef = useRef(null);
     const modelRef = useRef(null);
@@ -172,7 +172,8 @@ const Live2DViewer = ({ currentEmotion, audio }) => {
                 });
                 appRef.current = app;
 
-                const model = await Live2DModel.from(LIVE2D_CONFIG.model.path, {
+                const targetPath = modelPath || LIVE2D_CONFIG.model.path;
+                const model = await Live2DModel.from(targetPath, {
                     autoInteract: false
                 });
 
@@ -213,7 +214,7 @@ const Live2DViewer = ({ currentEmotion, audio }) => {
                 modelRef.current = null;
             }
         };
-    }, []);
+    }, [modelPath]);
 
     useEffect(() => {
         if (modelLoaded && modelRef.current && currentEmotion) {

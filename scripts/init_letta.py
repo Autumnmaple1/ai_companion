@@ -100,6 +100,17 @@ def init_letta_agent():
 
 
 def save_agent_id(agent_id):
+    # 1. 保存到角色 JSON 文件
+    char_config_path = f"backend/characters/{CHARACTER_NAME}.json"
+    if os.path.exists(char_config_path):
+        with open(char_config_path, "r", encoding="utf-8") as f:
+            data = json.load(f)
+        data["letta_agent_id"] = agent_id
+        with open(char_config_path, "w", encoding="utf-8") as f:
+            json.dump(data, f, indent=4, ensure_ascii=False)
+        print(f"已将 LETTA_AGENT_ID 写入 {char_config_path}")
+
+    # 2. 同时保持对 .env 的更新 (可选，为了兼容性)
     env_file = ".env"
     lines = []
     if os.path.exists(env_file):
